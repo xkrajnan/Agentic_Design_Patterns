@@ -907,7 +907,7 @@ A₁ ⊗ A₂ ⊗ ... ⊗ Aₙ = ParallelAgent([A₁, ..., Aₙ])
 flowchart TB
     Input[Input Message]
 
-    subgraph "A1 ⊗ A2 ⊗ A3"
+    subgraph "A1 × A2 × A3"
         A1[Agent A1<br/>time: 3s]
         A2[Agent A2<br/>time: 5s]
         A3[Agent A3<br/>time: 2s]
@@ -1038,7 +1038,7 @@ flowchart TB
     T2[+ code_executor]
     T3[+ custom_tool]
 
-    Result[A + T1 ∪ T2 ∪ T3<br/>Extended capabilities]
+    Result[A + T1 U T2 U T3<br/>Extended capabilities]
 
     A --> T1
     T1 --> T2
@@ -1298,7 +1298,7 @@ flowchart TB
         A2[Agent A2<br/>output_key=result2]
     end
 
-    S1["S' = S0 ∪ {result1: ...} ∪ {result2: ...}"]
+    S1["S' = S0 U {result1: ...} U {result2: ...}"]
 
     S0 --> A1
     S0 --> A2
@@ -1308,7 +1308,7 @@ flowchart TB
 
     note right of S1
         Disjoint keys required:
-        result1 ≠ result2
+        result1 != result2
     end note
 
     style S0 fill:#cfe2ff
