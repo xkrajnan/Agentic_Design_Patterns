@@ -16,25 +16,29 @@ Comprehensive roadmap and implementation guide for LLM coding agents.
 | **07_DECISION_FRAMEWORKS.md** | 10K | Flowcharts, matrices, trade-off analysis |
 | **08_TROUBLESHOOTING.md** | 9K | Common errors and solutions |
 | **09_QUICK_REFERENCE.md** | 12K | Imports, signatures, templates cheatsheet |
+| **10_UNIFIED_THEORY.md** | 180K | Unified theoretical framework with UML diagrams |
 
-**Total**: ~125KB of comprehensive documentation
+**Total**: ~305KB of comprehensive documentation
 
 ## Quick Start
 
 1. **New to agentic patterns?** → Start with [00_ROADMAP_INDEX.md](00_ROADMAP_INDEX.md)
-2. **Need to choose a framework?** → Read [01_FRAMEWORKS_COMPARISON.md](01_FRAMEWORKS_COMPARISON.md)
-3. **Want to understand core concepts?** → See [02_CORE_CONCEPTS.md](02_CORE_CONCEPTS.md)
-4. **Looking for specific pattern?** → Use the Quick Pattern Selector in [00_ROADMAP_INDEX.md](00_ROADMAP_INDEX.md)
-5. **Need quick code snippet?** → Check [09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)
-6. **Having issues?** → See [08_TROUBLESHOOTING.md](08_TROUBLESHOOTING.md)
+2. **Want the unified theory?** → Read [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md) for mathematical framework
+3. **Need to choose a framework?** → Read [01_FRAMEWORKS_COMPARISON.md](01_FRAMEWORKS_COMPARISON.md)
+4. **Want to understand core concepts?** → See [02_CORE_CONCEPTS.md](02_CORE_CONCEPTS.md)
+5. **Looking for specific pattern?** → Use the Quick Pattern Selector in [00_ROADMAP_INDEX.md](00_ROADMAP_INDEX.md)
+6. **Need quick code snippet?** → Check [09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)
+7. **Having issues?** → See [08_TROUBLESHOOTING.md](08_TROUBLESHOOTING.md)
 
 ## Key Features
 
-✅ **Complete Runnable Examples**: All code blocks include imports, setup, and execution  
-✅ **Modular Organization**: Each file covers one topic area comprehensively  
-✅ **Decision Frameworks**: Flowcharts, matrices, and comparative analyses  
-✅ **Complementarity Analysis**: Which patterns work well together  
-✅ **Orthogonality Analysis**: Independent dimensions/features across patterns  
+✅ **Complete Runnable Examples**: All code blocks include imports, setup, and execution
+✅ **Modular Organization**: Each file covers one topic area comprehensively
+✅ **Unified Theory**: Formal mathematical framework with 4-dimensional design space
+✅ **Visual Diagrams**: 35+ Mermaid UML diagrams throughout unified theory
+✅ **Decision Frameworks**: Flowcharts, matrices, and comparative analyses
+✅ **Complementarity Analysis**: Which patterns work well together
+✅ **Orthogonality Analysis**: Independent dimensions/features across patterns
 ✅ **LLM-Optimized**: Clear structure for agent consumption and reference
 
 ## Patterns Covered
