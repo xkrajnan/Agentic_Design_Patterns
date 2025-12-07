@@ -1306,11 +1306,11 @@ flowchart TB
     A1 --> S1
     A2 --> S1
 
-    note right of S1
-        Disjoint keys required:
-        result1 != result2
-    end note
+    NoteS1["📝 Disjoint keys required:<br/>result1 != result2"]
 
+    S1 -.-> NoteS1
+
+    style NoteS1 fill:#fffbcc,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
     style S0 fill:#cfe2ff
     style A1 fill:#d4edda
     style A2 fill:#d4edda
@@ -1690,12 +1690,11 @@ flowchart TB
     Judge -->|goals_met = False| Gen
     Judge -->|goals_met = True| Output[Final Code]
 
-    note right of Judge
-        Two-tier evaluation:
-        1. Detailed feedback (Critic)
-        2. Binary decision (Judge)
-    end note
+    NoteJudge["📝 Two-tier evaluation:<br/>1. Detailed feedback (Critic)<br/>2. Binary decision (Judge)"]
 
+    Judge -.-> NoteJudge
+
+    style NoteJudge fill:#fffbcc,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
     style Gen fill:#d4edda
     style Critic fill:#cfe2ff
     style Judge fill:#fff3cd
