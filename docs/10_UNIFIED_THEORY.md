@@ -65,10 +65,10 @@ graph TB
     end
 
     subgraph "4 Dimensions"
-        D1[D₁: Temporal<br/>Parallel/Sequential/Iterative]
-        D2[D₂: Communication<br/>State/Event/Tool]
-        D3[D₃: Decision<br/>Rule/LLM/Condition]
-        D4[D₄: Tools<br/>Built-in/Custom/Agent]
+        D1[D1: Temporal<br/>Parallel/Sequential/Iterative]
+        D2[D2: Communication<br/>State/Event/Tool]
+        D3[D3: Decision<br/>Rule/LLM/Condition]
+        D4[D4: Tools<br/>Built-in/Custom/Agent]
     end
 
     subgraph "Patterns"
@@ -130,7 +130,7 @@ Where:
 flowchart LR
     C[Context C<br/>Message M<br/>State S<br/>Tools T]
     A[Agent A]
-    E[Event Stream E*<br/>event₁, event₂, ...]
+    E[Event Stream E*<br/>event1, event2, ...]
 
     C --> A
     A --> E
@@ -813,10 +813,10 @@ graph TB
     end
 
     subgraph "4D Space Λ"
-        D1[D₁: Temporal]
-        D2[D₂: Communication]
-        D3[D₃: Decision]
-        D4[D₄: Tools]
+        D1[D1: Temporal]
+        D2[D2: Communication]
+        D3[D3: Decision]
+        D4[D4: Tools]
     end
 
     D1 --> PA
@@ -907,13 +907,13 @@ A₁ ⊗ A₂ ⊗ ... ⊗ Aₙ = ParallelAgent([A₁, ..., Aₙ])
 flowchart TB
     Input[Input Message]
 
-    subgraph "A₁ ⊗ A₂ ⊗ A₃"
-        A1[Agent A₁<br/>time: 3s]
-        A2[Agent A₂<br/>time: 5s]
-        A3[Agent A₃<br/>time: 2s]
+    subgraph "A1 ⊗ A2 ⊗ A3"
+        A1[Agent A1<br/>time: 3s]
+        A2[Agent A2<br/>time: 5s]
+        A3[Agent A3<br/>time: 2s]
     end
 
-    Output[Combined Output<br/>Total time: max5s, 3s, 2s = 5s<br/>Total cost: cost₁ + cost₂ + cost₃]
+    Output[Combined Output<br/>Total time: max5s, 3s, 2s = 5s<br/>Total cost: cost1 + cost2 + cost3]
 
     Input --> A1
     Input --> A2
@@ -955,10 +955,10 @@ A₁ ; A₂ ; ... ; Aₙ = SequentialAgent([A₁, ..., Aₙ])
 ```mermaid
 flowchart LR
     Input[Input]
-    A1[Agent A₁<br/>time: 3s]
-    A2[Agent A₂<br/>time: 5s]
-    A3[Agent A₃<br/>time: 2s]
-    Output[Output<br/>Total: 10s<br/>cost₁+cost₂+cost₃]
+    A1[Agent A1<br/>time: 3s]
+    A2[Agent A2<br/>time: 5s]
+    A3[Agent A3<br/>time: 2s]
+    Output[Output<br/>Total: 10s<br/>cost1+cost2+cost3]
 
     Input --> A1
     A1 -->|output_key| A2
@@ -1038,7 +1038,7 @@ flowchart TB
     T2[+ code_executor]
     T3[+ custom_tool]
 
-    Result[A + T₁ ∪ T₂ ∪ T₃<br/>Extended capabilities]
+    Result[A + T1 ∪ T2 ∪ T3<br/>Extended capabilities]
 
     A --> T1
     T1 --> T2
@@ -1168,15 +1168,15 @@ Where:
 
 ```mermaid
 stateDiagram-v2
-    S0: S₀ Initial State
-    S1: S₁ State after e₁
-    S2: S₂ State after e₂
-    Sn: Sₙ Final State
+    S0: S0 Initial State
+    S1: S1 State after e1
+    S2: S2 State after e2
+    Sn: Sn Final State
 
     [*] --> S0
-    S0 --> S1: event e₁<br/>update(S₀, e₁)
-    S1 --> S2: event e₂<br/>update(S₁, e₂)
-    S2 --> Sn: events e₃...eₙ
+    S0 --> S1: event e1<br/>update(S0, e1)
+    S1 --> S2: event e2<br/>update(S1, e2)
+    S2 --> Sn: events e3...en
     Sn --> [*]
 
     note right of S1
@@ -1254,14 +1254,14 @@ State is **monotonically increasing**—each agent adds to state, never removes.
 
 ```mermaid
 flowchart LR
-    S0[S₀ = ∅]
-    S1["S₁ = {a: value₁}"]
-    S2["S₂ = {a: value₁,<br/>b: value₂}"]
-    S3["S₃ = {a: value₁,<br/>b: value₂,<br/>c: value₃}"]
+    S0[S0 = ∅]
+    S1["S1 = {a: value1}"]
+    S2["S2 = {a: value1,<br/>b: value2}"]
+    S3["S3 = {a: value1,<br/>b: value2,<br/>c: value3}"]
 
-    A1[Agent A₁<br/>output_key=a]
-    A2[Agent A₂<br/>output_key=b]
-    A3[Agent A₃<br/>output_key=c]
+    A1[Agent A1<br/>output_key=a]
+    A2[Agent A2<br/>output_key=b]
+    A3[Agent A3<br/>output_key=c]
 
     S0 --> A1
     A1 --> S1
@@ -1291,14 +1291,14 @@ Parallel([A₁, A₂]):
 
 ```mermaid
 flowchart TB
-    S0[S₀ Initial State]
+    S0[S0 Initial State]
 
     subgraph "Parallel Execution"
-        A1[Agent A₁<br/>output_key=result1]
-        A2[Agent A₂<br/>output_key=result2]
+        A1[Agent A1<br/>output_key=result1]
+        A2[Agent A2<br/>output_key=result2]
     end
 
-    S1["S' = S₀ ∪ {result1: ...} ∪ {result2: ...}"]
+    S1["S' = S0 ∪ {result1: ...} ∪ {result2: ...}"]
 
     S0 --> A1
     S0 --> A2
@@ -1429,10 +1429,10 @@ UniversalAgent(
 classDiagram
     class UniversalAgent {
         <<abstract template>>
-        +execution: D₁
-        +communication: D₂
-        +decision: D₃
-        +tools: D₄
+        +execution: D1
+        +communication: D2
+        +decision: D3
+        +tools: D4
         +sub_agents: Agent[]
         +output_key: String
         +instruction: String
@@ -1511,9 +1511,9 @@ flowchart TB
     PA[ParallelAgent]
 
     subgraph "Concurrent Execution"
-        A1[Agent A₁<br/>output_key=r1]
-        A2[Agent A₂<br/>output_key=r2]
-        A3[Agent A₃<br/>output_key=r3]
+        A1[Agent A1<br/>output_key=r1]
+        A2[Agent A2<br/>output_key=r2]
+        A3[Agent A3<br/>output_key=r3]
     end
 
     State["Session State<br/>{r1: ..., r2: ..., r3: ...}"]
@@ -1554,9 +1554,9 @@ flowchart LR
     Input[Input]
     SA[SequentialAgent]
 
-    A1[Agent A₁<br/>output_key=step1]
-    A2[Agent A₂<br/>uses step1<br/>output_key=step2]
-    A3[Agent A₃<br/>uses step1, step2<br/>output_key=step3]
+    A1[Agent A1<br/>output_key=step1]
+    A2[Agent A2<br/>uses step1<br/>output_key=step2]
+    A3[Agent A3<br/>uses step1, step2<br/>output_key=step3]
 
     Output[Final Output]
 
