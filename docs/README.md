@@ -65,6 +65,29 @@ Based on comprehensive analysis of:
 - 2 frameworks: Google ADK (Gemini) and LangChain (OpenAI)
 - 8 distinct agentic patterns with complete implementations
 
+## Viewing Diagrams
+
+The unified theory document ([10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md)) contains 37 Mermaid diagrams that render beautifully on **GitHub** and **GitLab** with automatic dark mode support.
+
+### Recommended Viewing
+
+**Best:** View on GitHub after pushing (auto-detects dark/light mode)
+- All diagrams render with perfect contrast
+- Automatic theme adaptation
+- No configuration needed
+
+### PyCharm Users
+
+Due to limitations in JetBrains' Mermaid plugin ([IDEA-255254](https://youtrack.jetbrains.com/issue/IDEA-255254), [MERMAID-158](https://youtrack.jetbrains.com/issue/MERMAID-158/Dark-theme-background-color-is-not-used-for-the-Mermaid-preview-editor)), diagrams may have poor contrast in the IDE preview.
+
+**Workarounds:**
+1. **Push to GitHub** and view the rendered markdown there
+2. Use **[Mermaid Live Editor](https://mermaid.live/)** in your browser
+3. **VS Code**: Install "Markdown Preview Mermaid Support" extension
+4. **CLI rendering**: Use mermaid-cli to generate static images locally
+
+---
+
 ## Navigation
 
 Start at [00_ROADMAP_INDEX.md](00_ROADMAP_INDEX.md) for the complete navigation guide.

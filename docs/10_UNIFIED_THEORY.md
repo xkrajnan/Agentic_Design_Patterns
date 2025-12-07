@@ -59,7 +59,6 @@ We establish a formal theory based on 4 orthogonal dimensions:
 Every pattern is a coordinate (d₁, d₂, d₃, d₄) ∈ Λ, enabling **systematic pattern generation** rather than ad-hoc discovery.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 graph TB
     subgraph "Unified Theory"
         UT[Unified Theoretical Framework]
@@ -128,7 +127,6 @@ Where:
 - **E\***: AsyncGenerator of events (streaming output)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     C[Context C<br/>Message M<br/>State S<br/>Tools T]
     A[Agent A]
@@ -187,7 +185,6 @@ parent(A, B) ⟹ B.parent_agent = A
 - Framework automatically binds relationships
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 graph TD
     Root[Root Agent]
     A1[Child Agent A1]
@@ -233,7 +230,6 @@ BaseAgent: (_run_async_impl) → Agent
 - **LoopAgent**: Iterative orchestrator
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 classDiagram
     class Agent {
         <<abstract>>
@@ -298,7 +294,6 @@ read: Agent × Key → Value  # via template {key}
 2. Agent reads: `instruction="Use {result}"` → template injection from `S["result"]`
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant A1 as Agent 1
     participant S as Session State S
@@ -330,7 +325,6 @@ agent.tools = {t₁, t₂, ..., tₙ}
 - **Agent-as-Tool**: `AgentTool(agent)` wraps agent as invocable tool
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     A[Agent with tools]
     T1[google_search]
@@ -407,7 +401,6 @@ External capabilities via tools `T: Args → Result`. Enables:
 - **Composition**: Combine tools and agents
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 mindmap
   root((Unified Theory<br/>Principles))
     Agent as Function
@@ -472,7 +465,6 @@ Parallel(A₁, ..., Aₙ):
 - Each agent must have unique `output_key`
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Input
     participant PA as ParallelAgent
@@ -517,7 +509,6 @@ Sequential(A₁, ..., Aₙ):
 - Linear time complexity
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Input
     participant SA as SequentialAgent
@@ -560,7 +551,6 @@ Iterative(A, condition, max_iter):
 - State persists across iterations
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 stateDiagram-v2
     [*] --> Initialize
     Initialize --> Execute: iter = 1
@@ -625,7 +615,6 @@ Event-based:
 - Control signals (escalate, terminate)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Runner
     participant Agent
@@ -659,7 +648,6 @@ Tool-based:
 - Uniform tool interface for functions and agents
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     PA[Parent Agent]
     AT[AgentTool Wrapper]
@@ -716,7 +704,6 @@ When user asks for search, delegate to SearchAgent.
 ```
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TD
     Input[User Request]
     Coordinator[Coordinator Agent<br/>LLM Decision]
@@ -814,7 +801,6 @@ artist = LlmAgent(name="Artist", tools=[image_tool])
 Each pattern is a coordinate **(d₁, d₂, d₃, d₄) ∈ Λ**:
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 graph TB
     subgraph "Pattern Encoding in Λ"
         PA[ParallelAgent<br/>Parallel, State, Rule, Any]
@@ -918,7 +904,6 @@ A₁ ⊗ A₂ ⊗ ... ⊗ Aₙ = ParallelAgent([A₁, ..., Aₙ])
    - Total API calls sum
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Input[Input Message]
 
@@ -968,7 +953,6 @@ A₁ ; A₂ ; ... ; Aₙ = SequentialAgent([A₁, ..., Aₙ])
    - Total API calls sum
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     Input[Input]
     A1[Agent A₁<br/>time: 3s]
@@ -1011,7 +995,6 @@ A★(cond, k) = LoopAgent(A, condition=cond, max_iter=k)
    - Empirical convergence faster than bound
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 stateDiagram-v2
     [*] --> Init: A★cond, k
     Init --> Iter1: Execute A
@@ -1049,7 +1032,6 @@ A + {t₁, t₂, ..., tₙ} = A with tools={t₁, ..., tₙ}
    - Adding same tool twice has no effect
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     A[Agent A<br/>Base capabilities]
     T1[+ google_search]
@@ -1089,7 +1071,6 @@ This is the **canonical research & synthesis pattern** (Chapter 3):
 - Speedup: ~3× (for equal-time agents)
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Input[Research Query]
 
@@ -1186,7 +1167,6 @@ Where:
 ```
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 stateDiagram-v2
     S0: S₀ Initial State
     S1: S₁ State after e₁
@@ -1246,7 +1226,6 @@ agent2 = LlmAgent(
 ```
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Framework
     participant State as Session State S
@@ -1274,7 +1253,6 @@ Sequential([A₁, A₂]):
 State is **monotonically increasing**—each agent adds to state, never removes.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     S0[S₀ = ∅]
     S1["S₁ = {a: value₁}"]
@@ -1312,7 +1290,6 @@ Parallel([A₁, A₂]):
 **Critical Constraint:** Parallel agents must have **distinct output_keys** to avoid conflicts.
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     S0[S₀ Initial State]
 
@@ -1351,7 +1328,6 @@ flowchart TB
 **Full Sequence:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant A1 as Agent 1
     participant S as Session State
@@ -1381,7 +1357,6 @@ sequenceDiagram
 **Event Stream Processing:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Runner
     participant Agent
@@ -1408,7 +1383,6 @@ sequenceDiagram
 **AgentTool Invocation:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 sequenceDiagram
     participant Parent as Parent Agent
     participant ATWrapper as AgentTool Wrapper
@@ -1452,7 +1426,6 @@ UniversalAgent(
 ```
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 classDiagram
     class UniversalAgent {
         <<abstract template>>
@@ -1533,7 +1506,6 @@ ParallelAgent = UniversalAgent(
 **Architecture:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Input[Input Message]
     PA[ParallelAgent]
@@ -1578,7 +1550,6 @@ SequentialAgent = UniversalAgent(
 **Architecture:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     Input[Input]
     SA[SequentialAgent]
@@ -1618,7 +1589,6 @@ LoopAgent = UniversalAgent(
 **Architecture:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 stateDiagram-v2
     [*] --> Execute: LoopAgent starts
     Execute --> Check: Agent completes (iter i)
@@ -1662,7 +1632,6 @@ Route user requests intelligently:
 **Architecture:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Input[User Request]
     Coord[Coordinator<br/>LLM-based Routing]
@@ -1706,7 +1675,6 @@ GoalSettingPattern = UniversalAgent(
 **Feedback Control Loop:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Input[Use Case + Goals]
     Gen[Generator<br/>LLM generates code]
@@ -1874,7 +1842,6 @@ Each iteration reduces error via LLM feedback, leading to convergence.
 **When to use Google ADK vs LangChain/OpenAI:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TD
     Start{What is your<br/>primary need?}
 
@@ -1915,7 +1882,6 @@ flowchart TD
 **Hybrid Model Strategy:**
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Task[Complex Task]
 
@@ -1976,7 +1942,6 @@ Compared to:
 ### 8.3 Pattern Selection Flowchart
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TD
     Start{What do you need?}
 
@@ -2140,7 +2105,6 @@ for i in range(max_iterations):
 #### Use Case 1: Document Processing Pipeline
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart LR
     PDF[PDF Document]
 
@@ -2172,7 +2136,6 @@ flowchart LR
 #### Use Case 2: Multi-Source News Aggregation
 
 ```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#3b82f6','primaryTextColor':'#ffffff','primaryBorderColor':'#60a5fa','lineColor':'#94a3b8','secondaryColor':'#1e293b','tertiaryColor':'#0f172a','background':'#0f172a','mainBkg':'#1e293b','secondaryBkg':'#334155','tertiaryBkg':'#475569','textColor':'#f1f5f9','border1':'#64748b','border2':'#475569','nodeBorder':'#94a3b8','clusterBkg':'#1e293b','clusterBorder':'#64748b','titleColor':'#ffffff','edgeLabelBackground':'#1e293b','edgeLabelText':'#f1f5f9'}}}%%
 flowchart TB
     Query[News Query]
 
