@@ -19,6 +19,7 @@ This comprehensive roadmap provides deep implementation guidance for LLM coding 
 | **[09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)** | Cheat sheets | Imports, signatures, templates, quick lookup |
 | **[10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md)** | Formal framework | 4D design space, composition algebra, theorems |
 | **[11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md)** | Fault tolerance | FDIR, ECSS E1-E4, retry, TMR, circuit breaker |
+| **[12_PYTHON_ARCHITECTURE.md](12_PYTHON_ARCHITECTURE.md)** | Package architecture | Framework-agnostic design, plugin system, adapters |
 
 ## Quick Pattern Selector
 
@@ -204,7 +205,8 @@ Agentic_Design_Patterns/
 │   ├── 08_TROUBLESHOOTING.md
 │   ├── 09_QUICK_REFERENCE.md
 │   ├── 10_UNIFIED_THEORY.md
-│   └── 11_AEROSPACE_RELIABILITY_PATTERNS.md
+│   ├── 11_AEROSPACE_RELIABILITY_PATTERNS.md
+│   └── 12_PYTHON_ARCHITECTURE.md
 ├── CLAUDE.md      # High-level overview
 └── README.md      # Repository introduction
 ```
@@ -269,6 +271,7 @@ See [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md)
 - **Need quick code snippet?** → [09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)
 - **Want formal mathematical framework?** → [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md)
 - **Need fault tolerance / reliability?** → [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md)
+- **Want to implement as Python package?** → [12_PYTHON_ARCHITECTURE.md](12_PYTHON_ARCHITECTURE.md)
 
 ---
 
