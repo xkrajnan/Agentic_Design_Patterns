@@ -37,7 +37,8 @@ This document presents a high-level Python package architecture for implementing
 15. [State Machines and Convergence](#xv-state-machines-and-convergence)
 16. [Validation, Gating, and Framework Integration](#xvi-validation-gating-and-framework-integration)
 17. [Checklist Pattern Integration](#xvii-checklist-pattern-integration)
-18. [Appendices](#appendices)
+18. [Output Templating Pattern](#xviii-output-templating-pattern)
+19. [Appendices](#appendices)
 
 ---
 
@@ -4690,6 +4691,434 @@ class ChecklistItem:
 ```
 
 **Key Insight**: The architecture doesn't need a separate "Checklist" module—the existing detection, validation, and health monitoring components already implement checklist semantics. The `CompositeDetector` with configurable `fail_fast` and severity-based `DetectionResult` directly maps to aerospace checklist methodology.
+
+---
+
+## XVIII. Output Templating Pattern
+
+LLMs are inherently noisy—they produce outputs in unpredictable formats even when explicitly instructed. Output templating addresses this by constraining, validating, and correcting LLM outputs to improve robustness.
+
+### 18.1 The Three-Layer Defense
+
+Output templating operates at three points in the execution pipeline:
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                    OUTPUT TEMPLATING PIPELINE                      │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   [INPUT]                                                         │
+│      │                                                            │
+│      ▼                                                            │
+│   ┌─────────────────────────────────────────┐                     │
+│   │ 1. SCHEMA ENFORCEMENT (Generation-Time) │ ← Constrain at      │
+│   │    • JSON Schema in prompt              │    source           │
+│   │    • response_format parameter          │                     │
+│   │    • Tool calling with Pydantic schema  │                     │
+│   └─────────────────────────────────────────┘                     │
+│      │                                                            │
+│      ▼                                                            │
+│   ┌─────────────────────────────────────────┐                     │
+│   │    LLM AGENT EXECUTION                  │                     │
+│   └─────────────────────────────────────────┘                     │
+│      │                                                            │
+│      ▼                                                            │
+│   ┌─────────────────────────────────────────┐                     │
+│   │ 2. VALIDATION (Post-Execution)          │ ← Detect invalid    │
+│   │    • OutputValidationDetector           │    outputs          │
+│   │    • Pydantic schema validation         │                     │
+│   │    • Type coercion (str→int, etc)       │                     │
+│   └─────────────────────────────────────────┘                     │
+│      │                                                            │
+│      ├── Valid ────────────────────────────────→ [OUTPUT]         │
+│      │                                                            │
+│      └── Invalid                                                  │
+│            │                                                      │
+│            ▼                                                      │
+│   ┌─────────────────────────────────────────┐                     │
+│   │ 3. AUTO-CORRECTION (Inference)          │ ← Repair before     │
+│   │    • Extract JSON from markdown blocks  │    retry            │
+│   │    • Parse JSON embedded in prose       │                     │
+│   │    • LLM-based repair ("fix this JSON") │                     │
+│   └─────────────────────────────────────────┘                     │
+│      │                                                            │
+│      ├── Corrected ────────────────────────────→ [OUTPUT]         │
+│      │                                                            │
+│      └── Still Invalid                                            │
+│            │                                                      │
+│            ▼                                                      │
+│   ┌─────────────────────────────────────────┐                     │
+│   │ 4. RETRY WITH FEEDBACK (Recovery)       │ ← Re-ask with       │
+│   │    • RetryStrategy with error context   │    error context    │
+│   │    • "Your output was invalid: {error}" │                     │
+│   │    • Exponential backoff                │                     │
+│   └─────────────────────────────────────────┘                     │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### 18.2 Mechanism 1: Schema Enforcement (Generation-Time)
+
+**Architectural Position**: Agent Configuration Layer (D₄ Tools dimension)
+
+Schema enforcement constrains LLM output format DURING generation, before any validation occurs. This is the most effective layer as it prevents malformed outputs at the source.
+
+**Implementation Approaches**:
+
+| Approach | Mechanism | Reliability |
+|----------|-----------|-------------|
+| **JSON Schema in Prompt** | Include schema in system prompt | ~70% compliance |
+| **Native Structured Output** | OpenAI `response_format`, Google `response_schema` | ~95% compliance |
+| **Tool Calling** | Define function schema, LLM returns structured call | ~98% compliance |
+
+**Conceptual Operator**: Template Augmentation (`+ₜ`)
+
+```
+A_templated = A +ₜ Schema
+
+Where:
+  A = Base agent
+  Schema = Pydantic model defining output structure
+  +ₜ = Template augmentation operator
+```
+
+**Pseudocode**:
+
+```python
+# Schema enforcement via agent configuration
+agent = LlmAgent(
+    name="structured_agent",
+    model="gemini-2.0-flash-exp",
+    instruction="Analyze the input and provide structured output.",
+    output_schema=AnalysisResponse,  # Pydantic model
+    enforce_schema=True               # Pass to LLM API
+)
+
+# Pydantic model definition
+class AnalysisResponse(BaseModel):
+    summary: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    tags: List[str]
+    metadata: Optional[Dict[str, Any]] = None
+```
+
+### 18.3 Mechanism 2: Validation (Post-Execution)
+
+**Architectural Position**: Detection Layer (FDIR-D) — **Already Exists**
+
+The existing `OutputValidationDetector` handles post-execution validation:
+
+```python
+# Existing validation detector
+validator = OutputValidationDetector(ValidationDetectorConfig(
+    min_length=10,
+    max_length=10000,
+    required_fields=["summary", "confidence"],
+    forbidden_patterns=[r"error:", r"exception:"],
+    validator=lambda x: isinstance(x, dict)  # Custom validation
+))
+
+# Pydantic-based validation (extension)
+class PydanticValidator:
+    def __init__(self, schema: type[BaseModel]):
+        self.schema = schema
+
+    async def detect(self, observation, context) -> DetectionResult:
+        output = observation.get("output")
+        try:
+            validated = self.schema.model_validate(output)
+            return DetectionResult(is_healthy=True, confidence=1.0)
+        except ValidationError as e:
+            return DetectionResult(
+                is_healthy=False,
+                failure_type=FailureType.VALIDATION_FAILED,
+                evidence={"errors": e.errors()},
+                severity=0.8
+            )
+```
+
+### 18.4 Mechanism 3: Auto-Correction (Inference)
+
+**Architectural Position**: NEW — Between Detection and Recovery
+
+Auto-correction attempts to repair malformed outputs before triggering a retry, reducing API calls and latency.
+
+**Correction Strategies**:
+
+| Strategy | Technique | Success Rate |
+|----------|-----------|--------------|
+| **JSON Extraction** | Extract JSON from markdown code blocks | ~90% |
+| **Prose Parsing** | Find JSON embedded in natural language | ~70% |
+| **Type Coercion** | Pydantic's automatic `str→int`, `"true"→True` | ~95% |
+| **Syntax Repair** | Fix trailing commas, unquoted keys | ~80% |
+| **LLM Repair** | Ask LLM to fix malformed output | ~85% |
+
+**Protocol Definition**:
+
+```python
+class CorrectionStrategy(Protocol):
+    """Strategy for correcting malformed LLM outputs."""
+
+    async def correct(
+        self,
+        output: Any,
+        target_schema: type[BaseModel],
+        error: ValidationError
+    ) -> CorrectionResult:
+        """
+        Attempt to correct malformed output.
+
+        Returns:
+            CorrectionResult with either corrected output or failure reason
+        """
+        ...
+
+@dataclass
+class CorrectionResult:
+    success: bool
+    corrected_output: Optional[Any] = None
+    correction_method: Optional[str] = None
+    reason: Optional[str] = None  # If correction failed
+```
+
+**Built-in Correctors**:
+
+```python
+class JsonExtractor:
+    """Extract JSON from markdown code blocks."""
+
+    async def correct(self, output, schema, error) -> CorrectionResult:
+        if isinstance(output, str):
+            # Try to extract from ```json ... ``` blocks
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', output)
+            if match:
+                try:
+                    extracted = json.loads(match.group(1))
+                    validated = schema.model_validate(extracted)
+                    return CorrectionResult(
+                        success=True,
+                        corrected_output=validated,
+                        correction_method="json_extraction"
+                    )
+                except (json.JSONDecodeError, ValidationError):
+                    pass
+        return CorrectionResult(success=False, reason="No valid JSON block found")
+
+
+class PydanticCoercer:
+    """Use Pydantic's type coercion capabilities."""
+
+    async def correct(self, output, schema, error) -> CorrectionResult:
+        try:
+            # Pydantic automatically coerces types
+            validated = schema.model_validate(output, strict=False)
+            return CorrectionResult(
+                success=True,
+                corrected_output=validated,
+                correction_method="type_coercion"
+            )
+        except ValidationError:
+            return CorrectionResult(success=False, reason="Coercion failed")
+
+
+class CompositeCorrector:
+    """Chain multiple correction strategies."""
+
+    def __init__(self, strategies: List[CorrectionStrategy]):
+        self.strategies = strategies
+
+    async def correct(self, output, schema, error) -> CorrectionResult:
+        for strategy in self.strategies:
+            result = await strategy.correct(output, schema, error)
+            if result.success:
+                return result
+        return CorrectionResult(success=False, reason="All strategies exhausted")
+```
+
+### 18.5 Mechanism 4: Retry with Feedback (Recovery)
+
+**Architectural Position**: Recovery Layer (FDIR-R) — **Enhance Existing**
+
+The existing `RetryStrategy` can be enhanced to include validation error feedback:
+
+```python
+class FeedbackRetryStrategy:
+    """
+    Retry with validation error feedback.
+
+    Maps to ★ᵣ (Resilient Iterative) operator with error context.
+    """
+
+    def __init__(
+        self,
+        max_retries: int = 3,
+        include_error_in_prompt: bool = True,
+        base_delay: float = 1.0
+    ):
+        self.max_retries = max_retries
+        self.include_error_in_prompt = include_error_in_prompt
+        self.base_delay = base_delay
+
+    async def recover(
+        self,
+        failure: FailureEvent,
+        agent: Agent,
+        context: ExecutionContext
+    ) -> RecoveryResult:
+        for attempt in range(self.max_retries):
+            # Build retry prompt with error feedback
+            if self.include_error_in_prompt and failure.evidence:
+                error_feedback = self._format_error(failure.evidence)
+                enhanced_input = f"{context.original_input}\n\n" \
+                    f"[Previous attempt was invalid: {error_feedback}. " \
+                    f"Please correct and try again.]"
+            else:
+                enhanced_input = context.original_input
+
+            try:
+                result = await agent.execute(enhanced_input, context)
+                return RecoveryResult(success=True, result=result)
+            except Exception as e:
+                await asyncio.sleep(self.base_delay * (2 ** attempt))
+
+        return RecoveryResult(success=False, reason="Retries exhausted")
+
+    def _format_error(self, evidence: Dict) -> str:
+        errors = evidence.get("errors", [])
+        return "; ".join(
+            f"{e['loc']}: {e['msg']}" for e in errors[:3]
+        )
+```
+
+### 18.6 Complete Templating Pipeline
+
+Composing all mechanisms into a unified pattern:
+
+```python
+class TemplatedAgent:
+    """
+    Agent with complete output templating pipeline.
+
+    Composes: Schema Enforcement → Validation → Correction → Retry
+    """
+
+    def __init__(
+        self,
+        agent: Agent,
+        schema: type[BaseModel],
+        enforce_at_generation: bool = True,
+        corrector: Optional[CorrectionStrategy] = None,
+        max_retries: int = 3,
+        include_error_in_retry: bool = True
+    ):
+        self.agent = agent
+        self.schema = schema
+        self.enforce_at_generation = enforce_at_generation
+        self.corrector = corrector or CompositeCorrector([
+            JsonExtractor(),
+            PydanticCoercer(),
+        ])
+        self.validator = PydanticValidator(schema)
+        self.retry_strategy = FeedbackRetryStrategy(
+            max_retries=max_retries,
+            include_error_in_prompt=include_error_in_retry
+        )
+
+    @property
+    def name(self) -> str:
+        return f"Templated({self.agent.name})"
+
+    async def execute(
+        self,
+        input: Any,
+        context: ExecutionContext
+    ) -> AsyncIterator[Any]:
+        # Execute agent (with schema enforcement if enabled)
+        raw_output = None
+        async for event in self.agent.execute(input, context):
+            raw_output = event
+
+        # Validate
+        detection = await self.validator.detect(
+            {"output": raw_output}, context
+        )
+
+        if detection.is_healthy:
+            yield self.schema.model_validate(raw_output)
+            return
+
+        # Attempt correction
+        correction = await self.corrector.correct(
+            raw_output, self.schema, detection.evidence
+        )
+
+        if correction.success:
+            yield correction.corrected_output
+            return
+
+        # Retry with feedback
+        failure = FailureEvent(
+            failure_type=FailureType.VALIDATION_FAILED,
+            evidence=detection.evidence
+        )
+        recovery = await self.retry_strategy.recover(
+            failure, self.agent, context
+        )
+
+        if recovery.success:
+            yield self.schema.model_validate(recovery.result)
+        else:
+            raise ValidationError(f"Template enforcement failed: {recovery.reason}")
+```
+
+### 18.7 Reliability Analysis
+
+**Probability Model**:
+
+Without templating (retry only):
+```
+P(success) = 1 - (1-p)^k
+
+Where:
+  p = Base success rate (~0.6 for complex outputs)
+  k = Number of retries
+```
+
+With templating (three-layer defense):
+```
+P(success) = 1 - (1 - p_schema) × (1 - p_correct) × (1 - p_retry)^k
+
+Where:
+  p_schema  = P(valid | schema enforcement)  ≈ 0.95 (native JSON mode)
+  p_correct = P(corrected | invalid output)  ≈ 0.70 (extraction + coercion)
+  p_retry   = P(valid | retry with feedback) ≈ 0.80 (LLM learns from error)
+```
+
+**Example Calculation**:
+
+| Scenario | Formula | P(success) |
+|----------|---------|------------|
+| Retry only (k=3) | `1 - (1-0.6)^3` | 93.6% |
+| Schema only | `0.95` | 95.0% |
+| Schema + Correction | `1 - (1-0.95)(1-0.70)` | 98.5% |
+| Full pipeline (k=2) | `1 - (0.05)(0.30)(0.20)^2` | 99.94% |
+
+**Key Insight**: Schema enforcement is **multiplicative**—it improves the base success rate, making downstream correction and retry more effective.
+
+### 18.8 Architectural Summary
+
+| Mechanism | Layer | Component | Status |
+|-----------|-------|-----------|--------|
+| **Schema Enforcement** | Agent Config (D₄) | `+ₜ` operator | Extension |
+| **Validation** | Detection (FDIR-D) | `OutputValidationDetector` | Existing |
+| **Auto-Correction** | Detection (FDIR-D) | `CorrectionStrategy` | New |
+| **Retry with Feedback** | Recovery (FDIR-R) | `FeedbackRetryStrategy` | Enhancement |
+
+**Conclusion**: Output templating is NOT a separate concern—it's a **composition of existing reliability patterns** with two additions:
+1. Schema enforcement at agent configuration (`+ₜ` operator)
+2. Auto-correction in the detection layer (`CorrectionStrategy`)
+
+The architecture's existing validation and retry mechanisms form the foundation; templating extends them to constrain outputs more effectively at each layer.
 
 ---
 
