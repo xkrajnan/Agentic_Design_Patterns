@@ -24,21 +24,18 @@ This document presents a high-level Python package architecture for implementing
 2. [Package Structure](#ii-package-structure)
 3. [Core Abstractions](#iii-core-abstractions)
 4. [Plugin System](#iv-plugin-system)
-5. [Detection Strategies](#v-detection-strategies)
+5. [Quality Assurance Pipeline](#v-quality-assurance-pipeline)
 6. [Isolation Strategies](#vi-isolation-strategies)
 7. [Recovery Strategies](#vii-recovery-strategies)
-8. [Composition Operators](#viii-composition-operators)
+8. [Agent Composition and Orchestration](#viii-agent-composition-and-orchestration)
 9. [High-Level Patterns](#ix-high-level-patterns)
 10. [Framework Adapters](#x-framework-adapters)
 11. [Metrics and Monitoring](#xi-metrics-and-monitoring)
 12. [Configuration System](#xii-configuration-system)
 13. [Usage Examples](#xiii-usage-examples)
-14. [Agent Fundamentals and Communication](#xiv-agent-fundamentals-and-communication)
-15. [State Machines and Convergence](#xv-state-machines-and-convergence)
-16. [Validation, Gating, and Framework Integration](#xvi-validation-gating-and-framework-integration)
-17. [Checklist Pattern Integration](#xvii-checklist-pattern-integration)
-18. [Output Templating Pattern](#xviii-output-templating-pattern)
-19. [Appendices](#appendices)
+14. [Checklist Pattern Integration](#xiv-checklist-pattern-integration)
+15. [End-to-End Workflow Example](#xv-end-to-end-workflow-example)
+16. [Appendices](#appendices)
 
 ---
 
@@ -330,6 +327,59 @@ class IsolatedSubsystem:
     failure_event: FailureEvent
     state_snapshot: Dict[str, Any]
     isolation_time: float = field(default_factory=lambda: datetime.now().timestamp())
+```
+
+#### 3.1.1 Health State Machine
+
+The `HealthState` enum defines a state machine governing agent health transitions:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Healthy: Initialize
+
+    Healthy --> Healthy: Success
+    Healthy --> Degraded: Warning (latency, errors)
+    Healthy --> Failed: Critical failure
+
+    Degraded --> Healthy: Recovery
+    Degraded --> Failed: Escalation
+
+    Failed --> Isolated: Isolation triggered
+    Isolated --> Healthy: Full recovery
+    Isolated --> [*]: Permanent failure
+```
+
+**State Transition Rules:**
+
+| State | Description | Allowed Operations |
+|-------|-------------|-------------------|
+| **Healthy** | Normal operation | All requests processed |
+| **Degraded** | Elevated error rate | Requests processed with monitoring |
+| **Failed** | Critical failure detected | New requests blocked |
+| **Isolated** | Agent quarantined | Recovery attempts only |
+
+**Transition Pseudocode:**
+
+```python
+# Health state transitions
+on success:
+    health_state = HEALTHY
+    reset_failure_count()
+
+on warning (latency > threshold OR error_rate > limit):
+    health_state = DEGRADED
+
+on critical_failure:
+    health_state = FAILED
+    trigger_isolation()
+
+on isolation_complete:
+    health_state = ISOLATED
+    begin_recovery()
+
+on recovery_success:
+    health_state = HEALTHY
+    release_isolation()
 ```
 
 ### 3.2 Core Protocols (`core/protocols.py`)
@@ -1044,11 +1094,55 @@ class VotingPlugin(ABC):
 
 ---
 
-## V. Detection Strategies
+## V. Quality Assurance Pipeline
 
-Detection implements the **D** phase of FDIR, identifying when agents are failing or about to fail.
+This section consolidates detection, validation, correction, and recovery into a unified quality assurance pipeline. It implements the **D** (Detection) phase of FDIR with extensions for output templating.
 
-### 5.1 Strategy Interface
+### 5.0 Four-Layer Defense Model
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                    OUTPUT QUALITY PIPELINE                         │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   [INPUT] → [AGENT EXECUTION] → [OUTPUT]                          │
+│                                                                   │
+│   Layer 1: SCHEMA ENFORCEMENT (Generation-Time)                   │
+│            • JSON Schema in prompt / response_format              │
+│            • Tool calling with Pydantic schema                    │
+│            • ~95-98% format compliance                            │
+│                                                                   │
+│   Layer 2: DETECTION (Post-Execution)                             │
+│            • TimeoutDetector, ExceptionDetector                   │
+│            • OutputValidationDetector, AnomalyDetector            │
+│            • CompositeDetector for multi-strategy                 │
+│                                                                   │
+│   Layer 3: AUTO-CORRECTION (Inference)                            │
+│            • Extract JSON from markdown blocks                    │
+│            • Pydantic type coercion                               │
+│            • LLM-based repair                                     │
+│                                                                   │
+│   Layer 4: RECOVERY WITH FEEDBACK (Retry)                         │
+│            • RetryStrategy with error context                     │
+│            • "Your output was invalid: {error}"                   │
+│            • Exponential backoff                                  │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**Reliability Composition:**
+```
+P(success) = 1 - (1-P_schema)(1-P_detect)(1-P_correct)^retries
+
+Example: Schema(95%) + Correction(70%) + 2 retries(20% each)
+         = 1 - (0.05)(0.30)(0.20)² = 99.94%
+```
+
+### 5.1 Detection Strategies
+
+Detection identifies when agents are failing or about to fail.
+
+#### 5.1.1 Strategy Interface
 
 ```python
 # detection/base.py
@@ -1087,7 +1181,7 @@ class BaseDetector(ABC):
         ...
 ```
 
-### 5.2 Built-in Detectors
+#### 5.1.2 Built-in Detectors
 
 | Detector | File | Detection Rule | Observation Keys |
 |----------|------|----------------|------------------|
@@ -1375,6 +1469,100 @@ class CompositeDetector(BaseDetector):
         )
 ```
 
+### 5.2 Gating Mechanisms
+
+Six gating mechanisms control execution flow through the pipeline:
+
+| Gate | Mechanism | Trigger | Use Case |
+|------|-----------|---------|----------|
+| **Output Validation** | `OutputValidationDetector` | Schema mismatch | Structured output |
+| **LLM-as-Judge** | Binary True/False | Quality criteria | Subjective goals |
+| **TMR/Consensus** | `MajorityVoting` | No agreement | Critical decisions |
+| **Circuit Breaker** | `CircuitBreakerIsolation` | Failure threshold | Cascade prevention |
+| **Timeout** | `TimeoutDetector` | Response time | Latency bounds |
+| **Rate Limit** | Request counter | Quota exceeded | API protection |
+
+**Combined Gating Stack:**
+```
+Input → RateLimiter → CircuitBreaker → Agent → OutputValidator → LLMJudge → TMR → Output
+```
+
+### 5.3 Auto-Correction Strategies
+
+Auto-correction attempts to repair malformed outputs before triggering retry:
+
+| Strategy | Technique | Success Rate |
+|----------|-----------|--------------|
+| **JSON Extraction** | Extract from markdown code blocks | ~90% |
+| **Type Coercion** | Pydantic automatic conversion | ~95% |
+| **Syntax Repair** | Fix trailing commas, quotes | ~80% |
+| **LLM Repair** | Ask LLM to fix malformed output | ~85% |
+
+```python
+class CompositeCorrector:
+    """Chain multiple correction strategies."""
+
+    def __init__(self, strategies: List[CorrectionStrategy]):
+        self.strategies = strategies
+
+    async def correct(self, output, schema, error) -> CorrectionResult:
+        for strategy in self.strategies:
+            result = await strategy.correct(output, schema, error)
+            if result.success:
+                return result
+        return CorrectionResult(success=False, reason="All strategies exhausted")
+```
+
+### 5.4 TemplatedAgent (Complete Pipeline)
+
+Composing all mechanisms into a unified pattern:
+
+```python
+class TemplatedAgent:
+    """Agent with complete output templating pipeline."""
+
+    def __init__(
+        self,
+        agent: Agent,
+        schema: type[BaseModel],
+        corrector: Optional[CorrectionStrategy] = None,
+        max_retries: int = 3
+    ):
+        self.agent = agent
+        self.schema = schema
+        self.corrector = corrector or CompositeCorrector([
+            JsonExtractor(),
+            PydanticCoercer(),
+        ])
+        self.validator = PydanticValidator(schema)
+        self.retry_strategy = FeedbackRetryStrategy(max_retries=max_retries)
+
+    async def execute(self, input: Any, context: ExecutionContext) -> AsyncIterator[Any]:
+        # Layer 1: Execute agent (with schema enforcement if enabled)
+        raw_output = await self._execute_with_schema(input, context)
+
+        # Layer 2: Validate
+        detection = await self.validator.detect({"output": raw_output}, context)
+        if detection.is_healthy:
+            yield self.schema.model_validate(raw_output)
+            return
+
+        # Layer 3: Try auto-correction
+        correction = await self.corrector.correct(
+            raw_output, self.schema, detection.evidence
+        )
+        if correction.success:
+            yield correction.corrected_output
+            return
+
+        # Layer 4: Retry with feedback
+        result = await self.retry_strategy.recover(
+            FailureEvent(failure_type=detection.failure_type, ...),
+            self.agent, context
+        )
+        yield result.result
+```
+
 ---
 
 ## VI. Isolation Strategies
@@ -1521,6 +1709,41 @@ class CircuitBreakerIsolation:
         await self.record_success()
 ```
 
+#### 6.1.1 Circuit Breaker State Machine
+
+The circuit breaker implementation follows this state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+
+    Closed --> Closed: Success (reset counter)
+    Closed --> Open: failure_count > threshold
+
+    Open --> Open: Requests blocked (fast-fail)
+    Open --> HalfOpen: recovery_timeout elapsed
+
+    HalfOpen --> Closed: Test request succeeds
+    HalfOpen --> Open: Test request fails
+```
+
+**State Behaviors:**
+
+| State | Behavior | Transitions |
+|-------|----------|-------------|
+| **Closed** | Requests pass through | → Open when failures > threshold |
+| **Open** | Requests blocked immediately | → Half-Open after timeout |
+| **Half-Open** | Limited test requests | → Closed on success, → Open on failure |
+
+**Configuration:**
+
+```python
+circuit_breaker_config:
+    failure_threshold: 5      # Open after 5 failures
+    recovery_timeout: 30.0    # Seconds before Half-Open
+    half_open_max_calls: 1    # Test calls in Half-Open
+```
+
 ---
 
 ## VII. Recovery Strategies
@@ -1602,6 +1825,54 @@ class EscalationLadder:
             levels_tried=levels_tried,
             last_error=last_reason
         )
+```
+
+#### 7.1.1 Escalation Ladder State Diagram
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                RECOVERY ESCALATION                      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Failure Detected                                       │
+│       │                                                 │
+│       ▼                                                 │
+│  ┌─────────────┐                                        │
+│  │ L0: RETRY   │ Same agent, exponential backoff        │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │ L1: FALLBACK│ Alternative agent                      │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │L2: DEGRADE  │ Reduced functionality                  │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │L3: SAFE MODE│ Minimal operation, human escalation    │
+│  └─────────────┘                                        │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Escalation Pseudocode:**
+
+```python
+recovery_ladder = [L0_RETRY, L1_FALLBACK, L2_DEGRADATION, L3_SAFE_MODE]
+
+for level in recovery_ladder:
+    if level.can_handle(failure_type):
+        result = level.attempt_recovery(failure, agent, context)
+        if result.success:
+            return result
+        if not result.escalate:
+            break
+
+raise RecoveryExhaustedError(levels_tried)
 ```
 
 ### 7.2 Retry Strategy (`recovery/retry.py`)
@@ -1803,11 +2074,47 @@ class FallbackStrategy:
 
 ---
 
-## VIII. Composition Operators
+## VIII. Agent Composition and Orchestration
 
-Reliability-aware composition operators extend the standard operators from [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md).
+This section establishes the theoretical foundation for agents, their composition, state management, and reliability-aware operators. It consolidates the formal definitions from [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md) with the reliability extensions from [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md).
 
-### 8.1 Operator Summary
+### 8.1 Agent Fundamentals
+
+#### Definition (Axiom 1): Agent as Function
+
+An **Agent A** is a function transforming input context into an asynchronous event stream:
+
+```
+A: C → E*
+
+Where:
+  C = (M, S, T)  — Context tuple
+      M = Input message
+      S = Session state (persistent key-value store)
+      T = Available toolset
+
+  E* = AsyncGenerator of events (streaming output)
+```
+
+#### Agent Class Hierarchy
+
+```
+                      Agent (abstract)
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+    LlmAgent          BaseAgent        Orchestrators
+   (LLM-powered)    (custom logic)          │
+                                  ┌─────────┼─────────┐
+                                  │         │         │
+                            Parallel   Sequential   Loop
+                            Agent       Agent      Agent
+                              ⊗           ;          ★
+```
+
+### 8.2 Composition Operators
+
+Reliability-aware composition operators extend the standard operators:
 
 | Operator | Symbol | Semantics | D₅ Value |
 |----------|--------|-----------|----------|
@@ -1816,7 +2123,7 @@ Reliability-aware composition operators extend the standard operators from [10_U
 | Resilient Iterative | ★ᵣ | Loop with per-iteration retry | Retry |
 | Protected Augmentation | +ₚ | Tools wrapped with circuit breaker | Retry |
 
-### 8.2 Redundant Parallel (`composition/redundant_parallel.py`)
+#### 8.2.1 Redundant Parallel (`composition/redundant_parallel.py`)
 
 ```python
 """
@@ -1925,7 +2232,7 @@ class RedundantParallelOperator:
             )
 ```
 
-### 8.3 Fallback Sequential (`composition/fallback_sequential.py`)
+#### 8.2.2 Fallback Sequential (`composition/fallback_sequential.py`)
 
 ```python
 """
@@ -2011,7 +2318,7 @@ class FallbackSequentialOperator:
         )
 ```
 
-### 8.4 Voting Strategies (`utils/voting.py`)
+#### 8.2.3 Voting Strategies (`utils/voting.py`)
 
 ```python
 """Voting strategy implementations for redundant execution."""
@@ -2133,7 +2440,7 @@ class WeightedVoting:
         return winner["result"]
 ```
 
-### 8.5 Algebraic Properties
+### 8.3 Algebraic Properties
 
 The following table summarizes the algebraic properties of each composition operator:
 
@@ -2150,7 +2457,7 @@ The following table summarizes the algebraic properties of each composition oper
 - **Commutative**: `A ∘ B = B ∘ A`
 - **Identity**: Element `e` such that `A ∘ e = e ∘ A = A`
 
-### 8.6 Composition Guarantees
+### 8.4 Composition Guarantees
 
 This section establishes the theoretical foundation that enables arbitrary composition of reliability patterns. These theorems mirror those in [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md).
 
@@ -2273,6 +2580,146 @@ flowchart TB
 2. If inner recovery exhausts, failure propagates to outer FDIR
 3. Outer FDIR treats inner failure as atomic failure event
 4. Recovery level accumulates: max(inner_level, outer_level)
+
+### 8.5 Session State and Communication
+
+#### Axiom 2: State Persistence
+
+```
+S: Key → Value
+
+Properties:
+  • Persistent: Survives agent execution boundaries
+  • Shared: Accessible to ALL agents in a session
+  • Mutable: Write via output_key, read via {template}
+```
+
+#### State Update Rules
+
+| Rule | Mechanism | Formula |
+|------|-----------|---------|
+| **Output Key Binding** | Agent writes to state | `S' = S ∪ {(k, v)}` |
+| **Template Substitution** | Agent reads from state | `instruction' = instruction.replace({k}, S[k])` |
+| **Sequential Accumulation** | State grows monotonically | `S₂ ⊇ S₁ ⊇ S₀` |
+| **Parallel Isolation** | Disjoint keys required | `keys(A₁) ∩ keys(A₂) = ∅` |
+
+#### State Flow Example
+
+```python
+# Agent 1: WRITE to state
+A1 = Agent(output_key="research")  # S["research"] = result
+
+# Agent 2: READ from state, WRITE to state
+A2 = Agent(
+    instruction="Analyze: {research}",  # Injects S["research"]
+    output_key="analysis"               # S["analysis"] = result
+)
+
+# Pipeline execution
+# S₀ = {}
+# After A1: S₁ = {research: "..."}
+# After A2: S₂ = {research: "...", analysis: "..."}
+```
+
+#### Inter-Agent Communication Protocols
+
+Three protocols enable agent communication:
+
+| Protocol | Direction | Timing | Coupling | Use Case |
+|----------|-----------|--------|----------|----------|
+| **State-Based** | Downstream | After completion | Loose (via keys) | Pipeline data passing |
+| **Event-Based** | Producer → Consumer | Real-time | Loose (via stream) | Streaming, control flow |
+| **Tool-Based** | Bidirectional | On-demand | Tight (direct call) | Dynamic routing |
+
+**State-Based:** `output_key="k"` → `S["k"]` → `instruction="{k}"`
+
+**Event-Based:** `yield Event(content=..., actions=EventActions(escalate=True))`
+
+**Tool-Based:** `AgentTool(child_agent)` for dynamic invocation
+
+### 8.6 Convergence Mechanisms
+
+The `★ᵣ` (Resilient Iterative) operator defines convergence behavior for goal-driven loops.
+
+#### Termination vs Convergence
+
+| Property | Definition | Guarantee |
+|----------|------------|-----------|
+| **Termination** | Loop stops executing | **Always** (bounded by k × r) |
+| **Convergence** | Loop stops AND condition satisfied | **Conditional** (depends on reachability) |
+
+#### Theorem 16: Bounded Termination
+
+```
+For A★ᵣ(cond, k, r):
+  k = max iterations
+  r = max retries per iteration
+
+  1. Termination: Loop terminates within ≤ k × r attempts
+  2. Convergence: Loop converges iff ∃i ≤ k where:
+     - Iteration i succeeds within r attempts
+     - cond(Sᵢ) = true
+```
+
+#### Resilient Iterative Operator (★ᵣ) State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Iteration: Start (i=1)
+
+    Iteration --> Execute: i <= max_iter
+    Execute --> CheckCondition: Success
+    Execute --> Retry: Failure
+
+    Retry --> Execute: retries < max_retries
+    Retry --> NextIteration: retries exhausted
+
+    CheckCondition --> Converged: cond(S) = true
+    CheckCondition --> NextIteration: cond(S) = false
+
+    NextIteration --> Iteration: i++
+    Iteration --> Terminated: i > max_iter
+
+    Converged --> [*]: SUCCESS
+    Terminated --> [*]: TIMEOUT
+```
+
+#### LLM-as-Judge Pattern (Two-Tier Evaluation)
+
+```python
+# Tier 1: Detailed Feedback
+feedback = llm.evaluate(
+    prompt="Review {output} against {goals}. Provide detailed critique."
+)
+# Returns: Rich feedback with specific improvements
+
+# Tier 2: Binary Decision (GATE)
+goals_met = llm.evaluate(
+    prompt="Goals: {goals}\nFeedback: {feedback}\nHave goals been met? True/False"
+)
+# Returns: True (pass gate, exit loop) or False (continue loop)
+```
+
+**Why Two Tiers?**
+- Tier 1: Actionable feedback guides improvement
+- Tier 2: Reliable boolean for loop termination
+
+#### Convergence Parameters
+
+| Parameter | Effect | Trade-off |
+|-----------|--------|-----------|
+| `max_iterations (k)` | More attempts to satisfy condition | Higher API cost |
+| `max_retries (r)` | Higher success probability per iteration | Higher latency |
+| `temperature` | Lower = more deterministic | Less exploration |
+| `timeout` | Prevents hung iterations | May miss slow successes |
+
+**Recommended Settings:**
+
+| Goal Complexity | k | r | Temperature |
+|-----------------|---|---|-------------|
+| Simple (1-2 goals) | 2-3 | 2 | 0.2 |
+| Medium (3-4 goals) | 3-5 | 3 | 0.3 |
+| Complex (5+ goals) | 5-7 | 3 | 0.3-0.5 |
 
 ---
 
@@ -3309,48 +3756,27 @@ asyncio.run(main())
 
 ### 13.3 Full FDIR Pipeline
 
+For a comprehensive FDIR example with complete workflow, input/output structures, and all recovery scenarios, see **Section XV: End-to-End Workflow Example**.
+
+Quick reference:
+
 ```python
-from aerospace_reliability.adapters.generic import GenericAdapter
-from aerospace_reliability.patterns.fdir_agent import FDIRAgent, FDIRConfig
+from aerospace_reliability.patterns import FDIRAgent
+from aerospace_reliability.config import FDIRConfig, RetryConfig
 
-adapter = GenericAdapter()
-
-# Primary and fallback agents
-async def primary_agent(input: str, context):
-    return f"Primary: {input}"
-
-async def fallback_1(input: str, context):
-    return f"Fallback 1: {input}"
-
-async def fallback_2(input: str, context):
-    return f"Fallback 2: {input}"
-
-# Create FDIR agent
+# Create FDIR-protected agent
 fdir_agent = FDIRAgent(
-    primary_agent=adapter.wrap(primary_agent, "primary"),
-    fallback_agents=[
-        adapter.wrap(fallback_1, "fallback_1"),
-        adapter.wrap(fallback_2, "fallback_2"),
-    ],
+    primary=my_agent,
+    fallbacks=[fallback_1, fallback_2],
     config=FDIRConfig(
-        timeout=30.0,
-        max_retries=3,
-        circuit_breaker_threshold=5,
-        enable_safe_mode=True
+        retry_config=RetryConfig(max_retries=3),
+        detection_strategies=[TimeoutDetector(), OutputValidationDetector()],
     )
 )
 
-# Execute with full FDIR protection
-async def main():
-    context = adapter.create_context()
-    async for result in fdir_agent.execute("Critical task", context):
-        print(result)
-
-    # Check health state
-    print(f"Health: {fdir_agent.health_state}")
-
-import asyncio
-asyncio.run(main())
+# Execute - see Section XV for full workflow details
+async for result in fdir_agent.execute(query, context):
+    print(result)
 ```
 
 ### 13.4 Custom Plugin Registration
@@ -3742,670 +4168,14 @@ resilient = create_resilient_agent(
 )
 ```
 
----
-
-## XIV. Agent Fundamentals and Communication
-
-This section establishes the theoretical foundation for understanding agents, their composition, state management, and inter-agent communication protocols.
-
-### 14.1 What is an Agent?
-
-#### Formal Definition (Axiom 1)
-
-An **Agent A** is a function transforming input context into an asynchronous event stream:
-
-```
-A: C → E*
-
-Where:
-  C = (M, S, T)  — Context tuple
-      M = Input message
-      S = Session state (persistent key-value store)
-      T = Available toolset
-
-  E* = AsyncGenerator of events (streaming output)
-```
-
-#### Agent Class Hierarchy
-
-```
-                      Agent (abstract)
-                          │
-        ┌─────────────────┼─────────────────┐
-        │                 │                 │
-    LlmAgent          BaseAgent        Orchestrators
-   (LLM-powered)    (custom logic)          │
-                                  ┌─────────┼─────────┐
-                                  │         │         │
-                            Parallel   Sequential   Loop
-                            Agent       Agent      Agent
-                              ⊗           ;          ★
-```
-
-#### Protocol Definition
-
-```python
-# Pseudocode: Agent Protocol
-protocol Agent[T, R]:
-    property name: str
-
-    async method execute(input: T, context: ExecutionContext) -> AsyncIterator[R]:
-        # Transform input to event stream
-        ...
-```
-
-### 14.2 Agent Composition
-
-Four operators compose agents with proven algebraic properties:
-
-| Operator | Symbol | Semantics | Time | Commutative | Associative |
-|----------|--------|-----------|------|-------------|-------------|
-| **Parallel** | ⊗ | All execute concurrently | O(max(tᵢ)) | Yes | Yes |
-| **Sequential** | ; | Execute in order | O(Σtᵢ) | No | Yes |
-| **Iterative** | ★ | Loop until condition | O(k × t) | N/A | N/A |
-| **Augmentation** | + | Add tools to agent | O(t) | N/A | N/A |
-
-#### Composition Pseudocode
-
-```python
-# Parallel: A₁ ⊗ A₂ ⊗ A₃
-parallel_result = ParallelAgent([A1, A2, A3])
-# All run concurrently, results merged
-# Time = max(time(A1), time(A2), time(A3))
-
-# Sequential: A₁ ; A₂ ; A₃
-pipeline = SequentialAgent([A1, A2, A3])
-# A1 completes → A2 starts → A3 starts
-# State accumulates: S₀ ⊂ S₁ ⊂ S₂ ⊂ S₃
-
-# Iterative: A★(cond, k)
-loop = LoopAgent(A, condition=cond, max_iter=k)
-# Repeat A until cond(S) = true OR iterations = k
-
-# Augmentation: A + T
-augmented = Agent(tools=[T1, T2, ...])
-# Agent gains tool capabilities
-```
-
-### 14.3 Session State (Global Job State)
-
-#### Axiom 2: State Persistence
-
-```
-S: Key → Value
-
-Properties:
-  • Persistent: Survives agent execution boundaries
-  • Shared: Accessible to ALL agents in a session
-  • Mutable: Write via output_key, read via {template}
-```
-
-#### State Update Rules
-
-| Rule | Mechanism | Formula |
-|------|-----------|---------|
-| **Output Key Binding** | Agent writes to state | `S' = S ∪ {(k, v)}` |
-| **Template Substitution** | Agent reads from state | `instruction' = instruction.replace({k}, S[k])` |
-| **Sequential Accumulation** | State grows monotonically | `S₂ ⊇ S₁ ⊇ S₀` |
-| **Parallel Isolation** | Disjoint keys required | `keys(A₁) ∩ keys(A₂) = ∅` |
-
-#### State Flow Pseudocode
-
-```python
-# Agent 1: WRITE to state
-A1 = Agent(output_key="research")  # S["research"] = result
-
-# Agent 2: READ from state, WRITE to state
-A2 = Agent(
-    instruction="Analyze: {research}",  # Injects S["research"]
-    output_key="analysis"               # S["analysis"] = result
-)
-
-# Pipeline execution
-# S₀ = {}
-# After A1: S₁ = {research: "..."}
-# After A2: S₂ = {research: "...", analysis: "..."}
-```
-
-### 14.4 Inter-Agent Communication Protocols
-
-Three protocols enable agent communication:
-
-#### Protocol 1: State-Based Communication
-
-```
-Write:  Agent with output_key="k" → S["k"] = result
-Read:   Agent with instruction="{k}" → injects S["k"]
-```
-
-**Sequence:**
-```
-A1 executes → writes S["data"] → A2 created with "{data}" →
-Framework injects S["data"] → A2 executes with full instruction
-```
-
-**Use Case:** Sequential pipelines, data passing between stages.
-
-#### Protocol 2: Event-Based Communication
-
-```
-Produce:  yield Event(content=...) or Event(actions=escalate)
-Consume:  async for event in agent.execute(ctx): process(event)
-```
-
-**Event Types:**
-
-| Type | Purpose | Example |
-|------|---------|---------|
-| Content | Actual data | `Event(content="Result")` |
-| Streaming | Token-by-token | `Event(content="token", streaming=True)` |
-| Control | Flow control | `Event(actions=EventActions(escalate=True))` |
-
-**Use Case:** Real-time streaming, progress updates, loop termination signals.
-
-#### Protocol 3: Tool-Based Communication
-
-```
-Wrap:    AgentTool(child_agent) → tool
-Invoke:  Parent calls tool(args) → child executes → result returned
-```
-
-**Architecture:**
-```
-Parent Agent
-    │ invokes as tool
-    ▼
-AgentTool Wrapper
-    │ executes
-    ▼
-Child Agent (Specialist)
-```
-
-**Use Case:** Dynamic invocation, specialist delegation, multi-level nesting.
-
-#### Protocol Comparison
-
-| Aspect | State-Based | Event-Based | Tool-Based |
-|--------|-------------|-------------|------------|
-| **Direction** | Downstream only | Producer → Consumer | Bidirectional |
-| **Timing** | After completion | Real-time | On-demand |
-| **Coupling** | Loose (via keys) | Loose (via stream) | Tight (direct call) |
-| **Use Case** | Pipeline data | Streaming, control | Dynamic routing |
 
 ---
 
-## XV. State Machines and Convergence
-
-This section defines the explicit state machines governing agent behavior, fault handling, and convergence properties.
-
-### 15.1 Agent Health State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> Healthy: Initialize
-
-    Healthy --> Healthy: Success
-    Healthy --> Degraded: Warning (latency, errors)
-    Healthy --> Failed: Critical failure
-
-    Degraded --> Healthy: Recovery
-    Degraded --> Failed: Escalation
-
-    Failed --> Isolated: Isolation triggered
-    Isolated --> Healthy: Full recovery
-    Isolated --> [*]: Permanent failure
-```
-
-**States:**
-
-| State | Description | Allowed Operations |
-|-------|-------------|-------------------|
-| **Healthy** | Normal operation | All requests processed |
-| **Degraded** | Elevated error rate | Requests processed with monitoring |
-| **Failed** | Critical failure detected | New requests blocked |
-| **Isolated** | Agent quarantined | Recovery attempts only |
-
-**Transition Pseudocode:**
-
-```python
-# Health state transitions
-on success:
-    health_state = HEALTHY
-    reset_failure_count()
-
-on warning (latency > threshold OR error_rate > limit):
-    health_state = DEGRADED
-
-on critical_failure:
-    health_state = FAILED
-    trigger_isolation()
-
-on isolation_complete:
-    health_state = ISOLATED
-    begin_recovery()
-
-on recovery_success:
-    health_state = HEALTHY
-    release_isolation()
-```
-
-### 15.2 Circuit Breaker State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> Closed
-
-    Closed --> Closed: Success (reset counter)
-    Closed --> Open: failure_count > threshold
-
-    Open --> Open: Requests blocked (fast-fail)
-    Open --> HalfOpen: recovery_timeout elapsed
-
-    HalfOpen --> Closed: Test request succeeds
-    HalfOpen --> Open: Test request fails
-```
-
-**States:**
-
-| State | Behavior | Transitions |
-|-------|----------|-------------|
-| **Closed** | Requests pass through | → Open when failures > threshold |
-| **Open** | Requests blocked immediately | → Half-Open after timeout |
-| **Half-Open** | Limited test requests | → Closed on success, → Open on failure |
-
-**Configuration:**
-```python
-circuit_breaker_config:
-    failure_threshold: 5      # Open after 5 failures
-    recovery_timeout: 30.0    # Seconds before Half-Open
-    half_open_max_calls: 1    # Test calls in Half-Open
-```
-
-### 15.3 Recovery Escalation Ladder
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                RECOVERY ESCALATION                      │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Failure Detected                                       │
-│       │                                                 │
-│       ▼                                                 │
-│  ┌─────────────┐                                        │
-│  │ L0: RETRY   │ Same agent, exponential backoff        │
-│  └──────┬──────┘                                        │
-│         │ exhausted                                     │
-│         ▼                                               │
-│  ┌─────────────┐                                        │
-│  │ L1: FALLBACK│ Alternative agent                      │
-│  └──────┬──────┘                                        │
-│         │ exhausted                                     │
-│         ▼                                               │
-│  ┌─────────────┐                                        │
-│  │L2: DEGRADE  │ Reduced functionality                  │
-│  └──────┬──────┘                                        │
-│         │ exhausted                                     │
-│         ▼                                               │
-│  ┌─────────────┐                                        │
-│  │L3: SAFE MODE│ Minimal operation, human escalation    │
-│  └─────────────┘                                        │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Escalation Pseudocode:**
-
-```python
-recovery_ladder = [L0_RETRY, L1_FALLBACK, L2_DEGRADATION, L3_SAFE_MODE]
-
-for level in recovery_ladder:
-    if level.can_handle(failure_type):
-        result = level.attempt_recovery(failure, agent, context)
-        if result.success:
-            return result
-        if not result.escalate:
-            break
-
-raise RecoveryExhaustedError(levels_tried)
-```
-
-### 15.4 Convergence Mechanisms
-
-#### Termination vs Convergence
-
-| Property | Definition | Guarantee |
-|----------|------------|-----------|
-| **Termination** | Loop stops executing | **Always** (bounded by k × r) |
-| **Convergence** | Loop stops AND condition satisfied | **Conditional** (depends on reachability) |
-
-#### Theorem 16: Bounded Termination
-
-```
-For A★ᵣ(cond, k, r):
-  k = max iterations
-  r = max retries per iteration
-
-  1. Termination: Loop terminates within ≤ k × r attempts
-  2. Convergence: Loop converges iff ∃i ≤ k where:
-     - Iteration i succeeds within r attempts
-     - cond(Sᵢ) = true
-```
-
-#### Resilient Iterative Operator (★ᵣ) State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> Iteration: Start (i=1)
-
-    Iteration --> Execute: i <= max_iter
-    Execute --> CheckCondition: Success
-    Execute --> Retry: Failure
-
-    Retry --> Execute: retries < max_retries
-    Retry --> NextIteration: retries exhausted
-
-    CheckCondition --> Converged: cond(S) = true
-    CheckCondition --> NextIteration: cond(S) = false
-
-    NextIteration --> Iteration: i++
-    Iteration --> Terminated: i > max_iter
-
-    Converged --> [*]: SUCCESS
-    Terminated --> [*]: TIMEOUT
-```
-
-#### LLM-as-Judge Pattern (Two-Tier Evaluation)
-
-```python
-# Tier 1: Detailed Feedback
-feedback = llm.evaluate(
-    prompt="Review {output} against {goals}. Provide detailed critique."
-)
-# Returns: Rich feedback with specific improvements
-
-# Tier 2: Binary Decision (GATE)
-goals_met = llm.evaluate(
-    prompt="Goals: {goals}\nFeedback: {feedback}\nHave goals been met? True/False"
-)
-# Returns: True (pass gate, exit loop) or False (continue loop)
-```
-
-**Why Two Tiers?**
-- Tier 1: Actionable feedback guides improvement
-- Tier 2: Reliable boolean for loop termination
-
-#### Convergence Parameters
-
-| Parameter | Effect | Trade-off |
-|-----------|--------|-----------|
-| `max_iterations (k)` | More attempts to satisfy condition | Higher API cost |
-| `max_retries (r)` | Higher success probability per iteration | Higher latency |
-| `temperature` | Lower = more deterministic | Less exploration |
-| `timeout` | Prevents hung iterations | May miss slow successes |
-
-**Recommended Settings:**
-
-| Goal Complexity | k | r | Temperature |
-|-----------------|---|---|-------------|
-| Simple (1-2 goals) | 2-3 | 2 | 0.2 |
-| Medium (3-4 goals) | 3-5 | 3 | 0.3 |
-| Complex (5+ goals) | 5-7 | 3 | 0.3-0.5 |
-
----
-
-## XVI. Validation, Gating, and Framework Integration
-
-This section covers validation mechanisms, gating patterns for flow control, and mappings to standard frameworks.
-
-### 16.1 Validation Mechanisms
-
-#### Output Validation (Schema-Based)
-
-```python
-# Validation configuration
-validation_config:
-    min_length: 50              # Minimum output length
-    max_length: 10000           # Maximum output length
-    required_fields: [...]      # Required keys for dict output
-    forbidden_patterns: [...]   # Regex patterns to reject
-    validator: custom_function  # Custom validation logic
-```
-
-**Validation Pseudocode:**
-
-```python
-validate(output, config):
-    if output is None:
-        return Failure(INVALID_OUTPUT, "output_is_none")
-
-    if config.validator and not config.validator(output):
-        return Failure(VALIDATION_FAILED, "custom_validator_failed")
-
-    if len(str(output)) < config.min_length:
-        return Failure(INVALID_OUTPUT, "output_too_short")
-
-    if len(str(output)) > config.max_length:
-        return Failure(INVALID_OUTPUT, "output_too_long")
-
-    if config.required_fields:
-        missing = [f for f in config.required_fields if f not in output]
-        if missing:
-            return Failure(INVALID_OUTPUT, f"missing_fields: {missing}")
-
-    return Healthy(confidence=0.9)
-```
-
-#### Detection Pipeline (FDIR-D)
-
-Five detection strategies in priority order:
-
-| Strategy | Trigger | Latency | False Positives |
-|----------|---------|---------|-----------------|
-| **Timeout** | `response_time > threshold` | Low | Medium |
-| **Exception** | Exception caught | Zero | Zero |
-| **Validation** | `not validate(output, schema)` | Low | Low |
-| **Anomaly** | Statistical deviation | High | Variable |
-| **Health Check** | Periodic probe fails | Medium | Low |
-
-**Detection Rules:**
-
-```
-Rule 1: if response_time > timeout → Failure(Timeout)
-Rule 2: if caught_exception(e) → Failure(Exception)
-Rule 3: if not validate(output) → Failure(InvalidOutput)
-Rule 4: if error_rate > threshold → Warning(HighErrorRate)
-```
-
-### 16.2 Gating Mechanisms
-
-Six gating mechanisms control execution flow:
-
-#### Gate 1: Output Validation Gate
-
-```python
-# Block if output invalid
-result = validate(agent_output, schema)
-if not result.is_healthy:
-    block_and_retry()
-```
-
-#### Gate 2: LLM-as-Judge Gate
-
-```python
-# Binary decision gate
-def goals_met(feedback, goals) -> bool:
-    response = llm.evaluate(f"Goals met? True/False: {feedback}")
-    return response == "True"  # GATE: True = pass, False = retry
-```
-
-#### Gate 3: Voting/Consensus Gate (TMR)
-
-```python
-# Require majority agreement
-def majority_vote(results) -> Any:
-    counts = Counter(str(r) for r in results)
-    winner, count = counts.most_common(1)[0]
-
-    if count <= len(results) // 2:
-        raise NoConsensusError("No majority")  # GATE BLOCKED
-
-    return winner  # GATE PASSED
-```
-
-**Voting Strategies:**
-
-| Strategy | Requirement | Use Case |
-|----------|-------------|----------|
-| **Majority** | >50% agree | General decisions |
-| **Unanimous** | 100% agree | Critical decisions |
-| **Weighted** | Weighted sum > threshold | Confidence-based |
-
-#### Gate 4: Condition Gate (Loop Control)
-
-```python
-# Loop termination gate
-if condition(session_state):
-    yield Event(actions=EventActions(escalate=True))  # OPEN GATE
-else:
-    continue_loop()  # GATE CLOSED
-```
-
-#### Gate 5: Circuit Breaker Gate
-
-```python
-# Fail-fast gate
-if circuit_state == OPEN:
-    raise CircuitOpenError("Service unavailable")  # BLOCKED
-
-# GATE OPEN - proceed with request
-result = execute_agent(...)
-
-if success:
-    circuit.record_success()
-else:
-    circuit.record_failure()  # May trip gate
-```
-
-#### Gate 6: Rate Limit Gate
-
-```python
-# Throttle requests
-if requests_in_window > rate_limit:
-    wait_or_reject()  # GATE THROTTLED
-```
-
-#### Combined Gating Stack
-
-```python
-# Full validation stack pseudocode
-pipeline = FDIR(
-    Sequential([
-        RetryAgent(generator),              # Retry gate
-        OutputValidator(min_length=100),    # Schema gate
-        LLMJudge(goals),                    # Quality gate
-        TMR([a1, a2, a3], MajorityVoting), # Consensus gate
-    ]),
-    circuit_breaker=CircuitBreaker(threshold=5),  # Fail-fast gate
-    fallback_agents=[simple_fallback],
-)
-```
-
-### 16.3 Framework Integration Mapping
-
-#### Architecture Layers
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                   RELIABILITY PATTERNS LAYER                     │
-│  (RetryAgent, TMRAgent, FDIRAgent, CircuitBreaker, etc.)        │
-├─────────────────────────────────────────────────────────────────┤
-│                    UNIFIED PROTOCOL LAYER                        │
-│        Agent[T,R]  │  ExecutionContext  │  VotingStrategy       │
-├──────────┬─────────┴────────┬───────────┴──────────┬────────────┤
-│ Generic  │  GoogleADK       │  LangChain           │ OpenAI     │
-│ Adapter  │  Adapter         │  Adapter             │ Adapter    │
-├──────────┴──────────────────┴──────────────────────┴────────────┤
-│  Any async │  LlmAgent,     │  ChatOpenAI,        │ Assistants  │
-│  callable  │  BaseAgent     │  AgentExecutor      │  API        │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-#### Google ADK Mapping
-
-| ADK Concept | aerospace_reliability Equivalent |
-|-------------|----------------------------------|
-| `LlmAgent`, `BaseAgent` | `Agent[T, R]` protocol |
-| `InvocationContext` | `ExecutionContext` |
-| `session.state` | `context.session_state` |
-| `run_async()` generator | `agent.execute()` AsyncIterator |
-| `ParallelAgent` | `RedundantParallelOperator (⊗ᵣ)` + voting |
-| `SequentialAgent` | `FallbackSequentialOperator (;f)` + recovery |
-| `LoopAgent` | `ResilientIterativeOperator (★ᵣ)` |
-
-#### LangChain Adapter (Pseudocode)
-
-```python
-class LangChainAdapter:
-    def wrap(self, runnable) -> Agent:
-        return LangChainAgentWrapper(runnable)
-
-    def create_context(self, **kwargs) -> ExecutionContext:
-        return LangChainContext(**kwargs)
-
-class LangChainAgentWrapper:
-    def __init__(self, runnable):
-        self._runnable = runnable
-
-    @property
-    def name(self) -> str:
-        return getattr(self._runnable, 'name', 'langchain_agent')
-
-    async def execute(self, input, context) -> AsyncIterator:
-        result = await self._runnable.ainvoke(input)
-        yield result
-```
-
-#### Microservice Pattern Parallels
-
-| Microservice Pattern | aerospace_reliability Equivalent |
-|----------------------|----------------------------------|
-| Istio/Envoy circuit breaker | `CircuitBreakerIsolation` |
-| Kubernetes retry policies | `RetryStrategy` + backoff |
-| Service mesh health probes | `HealthMonitor` protocol |
-| Bulkhead isolation | `BulkheadIsolation` |
-| Canary deployments | TMR + `WeightedVoting` |
-| Graceful degradation | `DegradationStrategy`, `SafeModeStrategy` |
-
-#### Mixed Framework Composition
-
-```python
-# Combine agents from different frameworks
-adapter_adk = GoogleADKAdapter()
-adapter_lc = LangChainAdapter()
-adapter_generic = GenericAdapter()
-
-# Create hybrid pipeline
-pipeline = SequentialAgent([
-    adapter_adk.wrap(adk_researcher),      # Google ADK agent
-    TMRAgent([
-        adapter_lc.wrap(claude_analyzer),  # LangChain agent
-        adapter_lc.wrap(gpt4_analyzer),    # LangChain agent
-        adapter_generic.wrap(custom_fn),   # Generic callable
-    ], voting_strategy=MajorityVoting()),
-    FDIRAgent(
-        adapter_adk.wrap(synthesizer),
-        fallback_agents=[...],
-    ),
-])
-```
-
----
-
-## XVII. Checklist Pattern Integration
+## XIV. Checklist Pattern Integration
 
 This section documents how aerospace checklist methodology fits conceptually within the reliability architecture, mapping established standards (DO-178C, NASA FDIR, ECSS) to existing components.
 
-### 17.1 Aerospace Checklist Heritage
+### 14.1 Aerospace Checklist Heritage
 
 Checklists are fundamental to aerospace reliability, serving as structured verification procedures at critical execution points. The architecture already embodies these principles through its detection, validation, and recovery mechanisms.
 
@@ -4426,7 +4196,7 @@ Checklists are fundamental to aerospace reliability, serving as structured verif
 4. **Fail-Fast vs Comprehensive**: Critical items abort immediately; comprehensive mode gathers all issues
 5. **Evidence Collection**: Audit trail with timestamps, verification method, and verifier identity
 
-### 17.2 Mapping to Existing Architecture
+### 14.2 Mapping to Existing Architecture
 
 The architecture already implements checklist semantics through scattered components. This section shows how they map to aerospace checklist concepts.
 
@@ -4452,7 +4222,7 @@ Aerospace Design Assurance Levels map to detection severity:
 | **DAL-C** (Major) | Significant impact | `DetectionResult.severity = 0.6` | Log and continue |
 | **DAL-D/E** (Minor/None) | Limited/no impact | `DetectionResult.severity ≤ 0.3` | Advisory only |
 
-### 17.3 Checklist Integration Points
+### 14.3 Checklist Integration Points
 
 Checklists integrate at three phases of agent execution:
 
@@ -4575,7 +4345,7 @@ health_monitor = HealthMonitor(
 )
 ```
 
-### 17.4 Checklist Type Mapping
+### 14.4 Checklist Type Mapping
 
 | Checklist Type | Phase | Existing Implementation | Configuration |
 |----------------|-------|------------------------|---------------|
@@ -4592,7 +4362,7 @@ health_monitor = HealthMonitor(
 | **REQUIRED** | DAL-C | `severity >= 0.5` | Log, may override |
 | **RECOMMENDED** | DAL-D/E | `severity < 0.5` | Advisory only |
 
-### 17.5 Composing Detectors as Checklists
+### 14.5 Composing Detectors as Checklists
 
 The existing `CompositeDetector` directly implements checklist semantics:
 
@@ -4626,7 +4396,7 @@ deployment_checklist = CompositeDetector(
 | **Comprehensive** | `fail_fast=False` | Post-mission audit |
 | **Best-Effort** | Custom aggregation | Advisory monitoring |
 
-### 17.6 Extension Points for Custom Checklists
+### 14.6 Extension Points for Custom Checklists
 
 New checklist types can be added via the plugin registry:
 
@@ -4667,7 +4437,7 @@ class ChecklistItem:
         return True
 ```
 
-### 17.7 Summary: Checklist → Architecture Mapping
+### 14.7 Summary: Checklist → Architecture Mapping
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -4694,431 +4464,372 @@ class ChecklistItem:
 
 ---
 
-## XVIII. Output Templating Pattern
+## XV. End-to-End Workflow Example
 
-LLMs are inherently noisy—they produce outputs in unpredictable formats even when explicitly instructed. Output templating addresses this by constraining, validating, and correcting LLM outputs to improve robustness.
+This section demonstrates a complete query flow through the aerospace reliability architecture, showing how components interact from input to output.
 
-### 18.1 The Three-Layer Defense
+### 15.1 Scenario: Code Generation with Reliability
 
-Output templating operates at three points in the execution pipeline:
+**Query:** "Create a hello-world web-app"
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                    OUTPUT TEMPLATING PIPELINE                      │
-├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│   [INPUT]                                                         │
-│      │                                                            │
-│      ▼                                                            │
-│   ┌─────────────────────────────────────────┐                     │
-│   │ 1. SCHEMA ENFORCEMENT (Generation-Time) │ ← Constrain at      │
-│   │    • JSON Schema in prompt              │    source           │
-│   │    • response_format parameter          │                     │
-│   │    • Tool calling with Pydantic schema  │                     │
-│   └─────────────────────────────────────────┘                     │
-│      │                                                            │
-│      ▼                                                            │
-│   ┌─────────────────────────────────────────┐                     │
-│   │    LLM AGENT EXECUTION                  │                     │
-│   └─────────────────────────────────────────┘                     │
-│      │                                                            │
-│      ▼                                                            │
-│   ┌─────────────────────────────────────────┐                     │
-│   │ 2. VALIDATION (Post-Execution)          │ ← Detect invalid    │
-│   │    • OutputValidationDetector           │    outputs          │
-│   │    • Pydantic schema validation         │                     │
-│   │    • Type coercion (str→int, etc)       │                     │
-│   └─────────────────────────────────────────┘                     │
-│      │                                                            │
-│      ├── Valid ────────────────────────────────→ [OUTPUT]         │
-│      │                                                            │
-│      └── Invalid                                                  │
-│            │                                                      │
-│            ▼                                                      │
-│   ┌─────────────────────────────────────────┐                     │
-│   │ 3. AUTO-CORRECTION (Inference)          │ ← Repair before     │
-│   │    • Extract JSON from markdown blocks  │    retry            │
-│   │    • Parse JSON embedded in prose       │                     │
-│   │    • LLM-based repair ("fix this JSON") │                     │
-│   └─────────────────────────────────────────┘                     │
-│      │                                                            │
-│      ├── Corrected ────────────────────────────→ [OUTPUT]         │
-│      │                                                            │
-│      └── Still Invalid                                            │
-│            │                                                      │
-│            ▼                                                      │
-│   ┌─────────────────────────────────────────┐                     │
-│   │ 4. RETRY WITH FEEDBACK (Recovery)       │ ← Re-ask with       │
-│   │    • RetryStrategy with error context   │    error context    │
-│   │    • "Your output was invalid: {error}" │                     │
-│   │    • Exponential backoff                │                     │
-│   └─────────────────────────────────────────┘                     │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
-```
+This example traces how the architecture processes a code generation request with full reliability guarantees.
 
-### 18.2 Mechanism 1: Schema Enforcement (Generation-Time)
-
-**Architectural Position**: Agent Configuration Layer (D₄ Tools dimension)
-
-Schema enforcement constrains LLM output format DURING generation, before any validation occurs. This is the most effective layer as it prevents malformed outputs at the source.
-
-**Implementation Approaches**:
-
-| Approach | Mechanism | Reliability |
-|----------|-----------|-------------|
-| **JSON Schema in Prompt** | Include schema in system prompt | ~70% compliance |
-| **Native Structured Output** | OpenAI `response_format`, Google `response_schema` | ~95% compliance |
-| **Tool Calling** | Define function schema, LLM returns structured call | ~98% compliance |
-
-**Conceptual Operator**: Template Augmentation (`+ₜ`)
-
-```
-A_templated = A +ₜ Schema
-
-Where:
-  A = Base agent
-  Schema = Pydantic model defining output structure
-  +ₜ = Template augmentation operator
-```
-
-**Pseudocode**:
+### 15.2 Input Structure
 
 ```python
-# Schema enforcement via agent configuration
-agent = LlmAgent(
-    name="structured_agent",
-    model="gemini-2.0-flash-exp",
-    instruction="Analyze the input and provide structured output.",
-    output_schema=AnalysisResponse,  # Pydantic model
-    enforce_schema=True               # Pass to LLM API
+from aerospace_reliability.core.types import (
+    HealthState, ECSSAutonomyLevel
+)
+from aerospace_reliability.core.protocols import ExecutionContext
+from aerospace_reliability.patterns import FDIRAgent
+from aerospace_reliability.adapters import GoogleADKAdapter
+
+# 1. Create execution context
+context = ExecutionContext(
+    session_id="user-123-session-456",
+    session_state={},  # Mutable shared state
+    metadata={
+        "user_id": "user-123",
+        "request_id": "req-789",
+        "timestamp": "2024-01-15T10:30:00Z"
+    }
 )
 
-# Pydantic model definition
-class AnalysisResponse(BaseModel):
-    summary: str
-    confidence: float = Field(ge=0.0, le=1.0)
-    tags: List[str]
-    metadata: Optional[Dict[str, Any]] = None
+# 2. Raw query
+query = "Create a hello-world web-app"
 ```
 
-### 18.3 Mechanism 2: Validation (Post-Execution)
-
-**Architectural Position**: Detection Layer (FDIR-D) — **Already Exists**
-
-The existing `OutputValidationDetector` handles post-execution validation:
+### 15.3 Agent Composition
 
 ```python
-# Existing validation detector
-validator = OutputValidationDetector(ValidationDetectorConfig(
-    min_length=10,
-    max_length=10000,
-    required_fields=["summary", "confidence"],
-    forbidden_patterns=[r"error:", r"exception:"],
-    validator=lambda x: isinstance(x, dict)  # Custom validation
-))
+# Wrap LLM agents with adapter
+adapter = GoogleADKAdapter()
 
-# Pydantic-based validation (extension)
-class PydanticValidator:
-    def __init__(self, schema: type[BaseModel]):
-        self.schema = schema
+# Primary: Code generation agent
+code_generator = adapter.wrap(
+    LlmAgent(
+        name="code_generator",
+        model="gemini-2.0-flash-exp",
+        instruction="Generate clean, production-ready code.",
+        output_schema=CodeGenerationResponse
+    ),
+    name="primary_generator"
+)
 
-    async def detect(self, observation, context) -> DetectionResult:
-        output = observation.get("output")
-        try:
-            validated = self.schema.model_validate(output)
-            return DetectionResult(is_healthy=True, confidence=1.0)
-        except ValidationError as e:
-            return DetectionResult(
-                is_healthy=False,
-                failure_type=FailureType.VALIDATION_FAILED,
-                evidence={"errors": e.errors()},
-                severity=0.8
-            )
+# Fallback: Simpler code generator
+fallback_generator = adapter.wrap(
+    LlmAgent(
+        name="fallback_generator",
+        model="gemini-2.0-flash-exp",
+        instruction="Generate basic working code.",
+    ),
+    name="fallback"
+)
+
+# Compose with FDIR reliability
+reliable_generator = FDIRAgent(
+    primary=code_generator,
+    fallbacks=[fallback_generator],
+    config=FDIRConfig(
+        retry_config=RetryConfig(max_retries=3),
+        circuit_breaker_config=CircuitBreakerConfig(failure_threshold=5),
+        detection_strategies=[
+            TimeoutDetector(timeout_seconds=30.0),
+            OutputValidationDetector(required_fields=["code"]),
+        ],
+        ecss_level=ECSSAutonomyLevel.E3  # Automatic recovery with fallback
+    )
+)
 ```
 
-### 18.4 Mechanism 3: Auto-Correction (Inference)
+### 15.4 Workflow Phases
 
-**Architectural Position**: NEW — Between Detection and Recovery
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    END-TO-END WORKFLOW                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [INPUT: "Create a hello-world web-app"]                         │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────────────────────┐                         │
+│  │ 1. RECEPTION (Adapter Layer)        │                         │
+│  │    • GoogleADKAdapter wraps query   │                         │
+│  │    • Creates InvocationContext      │                         │
+│  └─────────────────────────────────────┘                         │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────────────────────┐                         │
+│  │ 2. PRE-CHECKS (Quality Assurance)   │                         │
+│  │    • CircuitBreaker: Is circuit     │                         │
+│  │      CLOSED? (allow request)        │                         │
+│  │    • HealthMonitor: Agent healthy?  │                         │
+│  └─────────────────────────────────────┘                         │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────────────────────┐                         │
+│  │ 3. EXECUTION (Primary Agent)        │                         │
+│  │    • LLM generates code             │                         │
+│  │    • Schema enforcement applied     │                         │
+│  └─────────────────────────────────────┘                         │
+│       │                                                          │
+│       ├── Success ──────────────────────────────────────────┐    │
+│       │                                                     │    │
+│       └── Failure                                           │    │
+│            │                                                │    │
+│            ▼                                                │    │
+│  ┌─────────────────────────────────────┐                    │    │
+│  │ 4. DETECTION (FDIR-D)               │                    │    │
+│  │    • TimeoutDetector: Did it timeout?│                   │    │
+│  │    • OutputValidationDetector: Is   │                    │    │
+│  │      output schema-compliant?       │                    │    │
+│  │    • Determine FailureType          │                    │    │
+│  └─────────────────────────────────────┘                    │    │
+│       │                                                     │    │
+│       ▼                                                     │    │
+│  ┌─────────────────────────────────────┐                    │    │
+│  │ 5. RECOVERY (FDIR-R)                │                    │    │
+│  │    • L0: Retry (up to 3 times)      │                    │    │
+│  │    • L1: Fallback to simpler agent  │                    │    │
+│  │    • L2: Degraded response          │                    │    │
+│  │    • L3: Safe mode (error message)  │                    │    │
+│  └─────────────────────────────────────┘                    │    │
+│       │                                                     │    │
+│       ▼                                                     │    │
+│  ┌─────────────────────────────────────────────────────────┐│    │
+│  │ 6. OUTPUT                                               ││    │
+│  │    • Result with HealthState                            │◄────┘
+│  │    • Metrics recorded                                   │
+│  │    • Session state updated                              │
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Auto-correction attempts to repair malformed outputs before triggering a retry, reducing API calls and latency.
-
-**Correction Strategies**:
-
-| Strategy | Technique | Success Rate |
-|----------|-----------|--------------|
-| **JSON Extraction** | Extract JSON from markdown code blocks | ~90% |
-| **Prose Parsing** | Find JSON embedded in natural language | ~70% |
-| **Type Coercion** | Pydantic's automatic `str→int`, `"true"→True` | ~95% |
-| **Syntax Repair** | Fix trailing commas, unquoted keys | ~80% |
-| **LLM Repair** | Ask LLM to fix malformed output | ~85% |
-
-**Protocol Definition**:
+### 15.5 Example Execution
 
 ```python
-class CorrectionStrategy(Protocol):
-    """Strategy for correcting malformed LLM outputs."""
+async def process_request():
+    # Execute with full reliability
+    async for event in reliable_generator.execute(query, context):
+        result = event
 
-    async def correct(
-        self,
-        output: Any,
-        target_schema: type[BaseModel],
-        error: ValidationError
-    ) -> CorrectionResult:
-        """
-        Attempt to correct malformed output.
+    return result
 
-        Returns:
-            CorrectionResult with either corrected output or failure reason
-        """
-        ...
+# Run
+result = asyncio.run(process_request())
+```
+
+### 15.6 Example Outputs
+
+#### Scenario A: Happy Path (Success on First Try)
+
+```python
+# Primary agent succeeds immediately
+{
+    "code": '''
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    return 'Hello, World!'
+
+if __name__ == '__main__':
+    app.run(debug=True)
+''',
+    "language": "python",
+    "framework": "Flask",
+    "health_state": "HEALTHY",
+    "recovery_level": None,
+    "attempts": 1
+}
+```
+
+#### Scenario B: Recovered After Retry
+
+```python
+# First attempt times out, retry succeeds
+{
+    "code": "...",  # Generated code
+    "health_state": "HEALTHY",
+    "recovery_level": "L0_RETRY",
+    "attempts": 2,
+    "recovery_trace": [
+        {"attempt": 1, "failure": "TIMEOUT", "action": "RETRY"},
+        {"attempt": 2, "result": "SUCCESS"}
+    ]
+}
+```
+
+#### Scenario C: Fallback Used
+
+```python
+# Primary fails repeatedly, fallback succeeds
+{
+    "code": "...",  # Simpler code from fallback
+    "health_state": "DEGRADED",
+    "recovery_level": "L1_FALLBACK",
+    "attempts": 4,  # 3 retries + 1 fallback
+    "recovery_trace": [
+        {"attempt": 1, "failure": "TIMEOUT", "action": "RETRY"},
+        {"attempt": 2, "failure": "VALIDATION_FAILED", "action": "RETRY"},
+        {"attempt": 3, "failure": "TIMEOUT", "action": "FALLBACK"},
+        {"attempt": 4, "agent": "fallback", "result": "SUCCESS"}
+    ],
+    "degradation_notice": "Generated with fallback agent"
+}
+```
+
+#### Scenario D: Safe Mode (All Recovery Exhausted)
+
+```python
+# All recovery options exhausted
+{
+    "code": None,
+    "health_state": "FAILED",
+    "recovery_level": "L3_SAFE_MODE",
+    "error": "Unable to generate code after all recovery attempts",
+    "recovery_trace": [...],
+    "safe_mode_response": {
+        "message": "Service temporarily unavailable",
+        "suggested_action": "Please try again later or contact support",
+        "incident_id": "INC-2024-0115-001"
+    }
+}
+```
+
+### 15.7 Reliability Metrics
+
+After execution, the system records:
+
+```python
+# Metrics collected
+metrics = {
+    "request_id": "req-789",
+    "total_latency_ms": 1250,
+    "attempts": 2,
+    "final_health_state": "HEALTHY",
+    "recovery_level_reached": "L0_RETRY",
+    "circuit_state": "CLOSED",
+
+    # For MTBF calculation
+    "success": True,
+    "failure_type": None,
+
+    # Per-agent metrics
+    "agent_metrics": {
+        "primary_generator": {
+            "invocations": 2,
+            "successes": 1,
+            "failures": 1,
+            "avg_latency_ms": 600
+        }
+    }
+}
+```
+
+### 15.8 Complete Runnable Example
+
+```python
+"""
+End-to-end example: Code generation with aerospace reliability.
+
+Run: python -m examples.e2e_code_generation
+"""
+
+import asyncio
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Any
+
+# Assuming aerospace_reliability package is installed
+from aerospace_reliability.core.types import (
+    HealthState, RecoveryLevel, FailureType,
+    FailureEvent, DetectionResult, RecoveryResult
+)
+from aerospace_reliability.core.protocols import (
+    Agent, ExecutionContext, DetectionStrategy
+)
+from aerospace_reliability.patterns import FDIRAgent
+from aerospace_reliability.adapters import GoogleADKAdapter
+from aerospace_reliability.detection import (
+    TimeoutDetector, OutputValidationDetector, CompositeDetector
+)
+from aerospace_reliability.recovery import RetryStrategy, FallbackStrategy
+from aerospace_reliability.config import FDIRConfig, RetryConfig
+
 
 @dataclass
-class CorrectionResult:
-    success: bool
-    corrected_output: Optional[Any] = None
-    correction_method: Optional[str] = None
-    reason: Optional[str] = None  # If correction failed
-```
-
-**Built-in Correctors**:
-
-```python
-class JsonExtractor:
-    """Extract JSON from markdown code blocks."""
-
-    async def correct(self, output, schema, error) -> CorrectionResult:
-        if isinstance(output, str):
-            # Try to extract from ```json ... ``` blocks
-            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', output)
-            if match:
-                try:
-                    extracted = json.loads(match.group(1))
-                    validated = schema.model_validate(extracted)
-                    return CorrectionResult(
-                        success=True,
-                        corrected_output=validated,
-                        correction_method="json_extraction"
-                    )
-                except (json.JSONDecodeError, ValidationError):
-                    pass
-        return CorrectionResult(success=False, reason="No valid JSON block found")
+class CodeGenerationResponse:
+    """Expected output schema."""
+    code: str
+    language: str
+    framework: Optional[str] = None
 
 
-class PydanticCoercer:
-    """Use Pydantic's type coercion capabilities."""
+async def main():
+    # Setup adapter
+    adapter = GoogleADKAdapter()
 
-    async def correct(self, output, schema, error) -> CorrectionResult:
-        try:
-            # Pydantic automatically coerces types
-            validated = schema.model_validate(output, strict=False)
-            return CorrectionResult(
-                success=True,
-                corrected_output=validated,
-                correction_method="type_coercion"
-            )
-        except ValidationError:
-            return CorrectionResult(success=False, reason="Coercion failed")
+    # Create agents (would be actual LlmAgent instances)
+    primary = adapter.wrap(
+        MockCodeGenerator(success_rate=0.7),
+        name="primary"
+    )
+    fallback = adapter.wrap(
+        MockCodeGenerator(success_rate=0.95),
+        name="fallback"
+    )
 
+    # Create FDIR-wrapped agent
+    reliable_agent = FDIRAgent(
+        primary=primary,
+        fallbacks=[fallback],
+        config=FDIRConfig(
+            retry_config=RetryConfig(max_retries=3),
+            detection_strategies=[
+                TimeoutDetector(timeout_seconds=5.0),
+                OutputValidationDetector(required_fields=["code"]),
+            ]
+        )
+    )
 
-class CompositeCorrector:
-    """Chain multiple correction strategies."""
+    # Create context
+    context = ExecutionContext(
+        session_id="demo-session",
+        session_state={},
+        metadata={"demo": True}
+    )
 
-    def __init__(self, strategies: List[CorrectionStrategy]):
-        self.strategies = strategies
+    # Execute
+    print("Processing: 'Create a hello-world web-app'")
+    print("-" * 50)
 
-    async def correct(self, output, schema, error) -> CorrectionResult:
-        for strategy in self.strategies:
-            result = await strategy.correct(output, schema, error)
-            if result.success:
-                return result
-        return CorrectionResult(success=False, reason="All strategies exhausted")
-```
-
-### 18.5 Mechanism 4: Retry with Feedback (Recovery)
-
-**Architectural Position**: Recovery Layer (FDIR-R) — **Enhance Existing**
-
-The existing `RetryStrategy` can be enhanced to include validation error feedback:
-
-```python
-class FeedbackRetryStrategy:
-    """
-    Retry with validation error feedback.
-
-    Maps to ★ᵣ (Resilient Iterative) operator with error context.
-    """
-
-    def __init__(
-        self,
-        max_retries: int = 3,
-        include_error_in_prompt: bool = True,
-        base_delay: float = 1.0
+    async for event in reliable_agent.execute(
+        "Create a hello-world web-app",
+        context
     ):
-        self.max_retries = max_retries
-        self.include_error_in_prompt = include_error_in_prompt
-        self.base_delay = base_delay
+        print(f"Health State: {event.get('health_state', 'N/A')}")
+        print(f"Recovery Level: {event.get('recovery_level', 'None')}")
+        print(f"Attempts: {event.get('attempts', 1)}")
+        if event.get('code'):
+            print(f"Code Preview: {event['code'][:100]}...")
 
-    async def recover(
-        self,
-        failure: FailureEvent,
-        agent: Agent,
-        context: ExecutionContext
-    ) -> RecoveryResult:
-        for attempt in range(self.max_retries):
-            # Build retry prompt with error feedback
-            if self.include_error_in_prompt and failure.evidence:
-                error_feedback = self._format_error(failure.evidence)
-                enhanced_input = f"{context.original_input}\n\n" \
-                    f"[Previous attempt was invalid: {error_feedback}. " \
-                    f"Please correct and try again.]"
-            else:
-                enhanced_input = context.original_input
+    print("-" * 50)
+    print("Done!")
 
-            try:
-                result = await agent.execute(enhanced_input, context)
-                return RecoveryResult(success=True, result=result)
-            except Exception as e:
-                await asyncio.sleep(self.base_delay * (2 ** attempt))
 
-        return RecoveryResult(success=False, reason="Retries exhausted")
-
-    def _format_error(self, evidence: Dict) -> str:
-        errors = evidence.get("errors", [])
-        return "; ".join(
-            f"{e['loc']}: {e['msg']}" for e in errors[:3]
-        )
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-### 18.6 Complete Templating Pipeline
+**Key Takeaways:**
 
-Composing all mechanisms into a unified pattern:
-
-```python
-class TemplatedAgent:
-    """
-    Agent with complete output templating pipeline.
-
-    Composes: Schema Enforcement → Validation → Correction → Retry
-    """
-
-    def __init__(
-        self,
-        agent: Agent,
-        schema: type[BaseModel],
-        enforce_at_generation: bool = True,
-        corrector: Optional[CorrectionStrategy] = None,
-        max_retries: int = 3,
-        include_error_in_retry: bool = True
-    ):
-        self.agent = agent
-        self.schema = schema
-        self.enforce_at_generation = enforce_at_generation
-        self.corrector = corrector or CompositeCorrector([
-            JsonExtractor(),
-            PydanticCoercer(),
-        ])
-        self.validator = PydanticValidator(schema)
-        self.retry_strategy = FeedbackRetryStrategy(
-            max_retries=max_retries,
-            include_error_in_prompt=include_error_in_retry
-        )
-
-    @property
-    def name(self) -> str:
-        return f"Templated({self.agent.name})"
-
-    async def execute(
-        self,
-        input: Any,
-        context: ExecutionContext
-    ) -> AsyncIterator[Any]:
-        # Execute agent (with schema enforcement if enabled)
-        raw_output = None
-        async for event in self.agent.execute(input, context):
-            raw_output = event
-
-        # Validate
-        detection = await self.validator.detect(
-            {"output": raw_output}, context
-        )
-
-        if detection.is_healthy:
-            yield self.schema.model_validate(raw_output)
-            return
-
-        # Attempt correction
-        correction = await self.corrector.correct(
-            raw_output, self.schema, detection.evidence
-        )
-
-        if correction.success:
-            yield correction.corrected_output
-            return
-
-        # Retry with feedback
-        failure = FailureEvent(
-            failure_type=FailureType.VALIDATION_FAILED,
-            evidence=detection.evidence
-        )
-        recovery = await self.retry_strategy.recover(
-            failure, self.agent, context
-        )
-
-        if recovery.success:
-            yield self.schema.model_validate(recovery.result)
-        else:
-            raise ValidationError(f"Template enforcement failed: {recovery.reason}")
-```
-
-### 18.7 Reliability Analysis
-
-**Probability Model**:
-
-Without templating (retry only):
-```
-P(success) = 1 - (1-p)^k
-
-Where:
-  p = Base success rate (~0.6 for complex outputs)
-  k = Number of retries
-```
-
-With templating (three-layer defense):
-```
-P(success) = 1 - (1 - p_schema) × (1 - p_correct) × (1 - p_retry)^k
-
-Where:
-  p_schema  = P(valid | schema enforcement)  ≈ 0.95 (native JSON mode)
-  p_correct = P(corrected | invalid output)  ≈ 0.70 (extraction + coercion)
-  p_retry   = P(valid | retry with feedback) ≈ 0.80 (LLM learns from error)
-```
-
-**Example Calculation**:
-
-| Scenario | Formula | P(success) |
-|----------|---------|------------|
-| Retry only (k=3) | `1 - (1-0.6)^3` | 93.6% |
-| Schema only | `0.95` | 95.0% |
-| Schema + Correction | `1 - (1-0.95)(1-0.70)` | 98.5% |
-| Full pipeline (k=2) | `1 - (0.05)(0.30)(0.20)^2` | 99.94% |
-
-**Key Insight**: Schema enforcement is **multiplicative**—it improves the base success rate, making downstream correction and retry more effective.
-
-### 18.8 Architectural Summary
-
-| Mechanism | Layer | Component | Status |
-|-----------|-------|-----------|--------|
-| **Schema Enforcement** | Agent Config (D₄) | `+ₜ` operator | Extension |
-| **Validation** | Detection (FDIR-D) | `OutputValidationDetector` | Existing |
-| **Auto-Correction** | Detection (FDIR-D) | `CorrectionStrategy` | New |
-| **Retry with Feedback** | Recovery (FDIR-R) | `FeedbackRetryStrategy` | Enhancement |
-
-**Conclusion**: Output templating is NOT a separate concern—it's a **composition of existing reliability patterns** with two additions:
-1. Schema enforcement at agent configuration (`+ₜ` operator)
-2. Auto-correction in the detection layer (`CorrectionStrategy`)
-
-The architecture's existing validation and retry mechanisms form the foundation; templating extends them to constrain outputs more effectively at each layer.
+1. **Input**: Raw query + ExecutionContext with session state
+2. **Composition**: Primary agent wrapped with FDIR (detection + recovery)
+3. **Flow**: Reception → Pre-checks → Execution → Detection → Recovery → Output
+4. **Output**: Result includes health state, recovery trace, and metrics
+5. **Guarantees**: Bounded termination (via escalation ladder), graceful degradation
 
 ---
 
