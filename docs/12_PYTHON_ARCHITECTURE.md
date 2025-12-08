@@ -33,7 +33,11 @@ This document presents a high-level Python package architecture for implementing
 11. [Metrics and Monitoring](#xi-metrics-and-monitoring)
 12. [Configuration System](#xii-configuration-system)
 13. [Usage Examples](#xiii-usage-examples)
-14. [Appendices](#appendices)
+14. [Agent Fundamentals and Communication](#xiv-agent-fundamentals-and-communication)
+15. [State Machines and Convergence](#xv-state-machines-and-convergence)
+16. [Validation, Gating, and Framework Integration](#xvi-validation-gating-and-framework-integration)
+17. [Checklist Pattern Integration](#xvii-checklist-pattern-integration)
+18. [Appendices](#appendices)
 
 ---
 
@@ -4393,6 +4397,299 @@ pipeline = SequentialAgent([
     ),
 ])
 ```
+
+---
+
+## XVII. Checklist Pattern Integration
+
+This section documents how aerospace checklist methodology fits conceptually within the reliability architecture, mapping established standards (DO-178C, NASA FDIR, ECSS) to existing components.
+
+### 17.1 Aerospace Checklist Heritage
+
+Checklists are fundamental to aerospace reliability, serving as structured verification procedures at critical execution points. The architecture already embodies these principles through its detection, validation, and recovery mechanisms.
+
+#### Key Standards and Their Checklist Concepts
+
+| Standard | Checklist Mechanism | Key Features |
+|----------|---------------------|--------------|
+| **DO-178C** (Aviation) | Annex A Tables (A-1 to A-10) | Design Assurance Levels (DAL-A to E) determine verification rigor |
+| **NASA FDIR** | Risk Management Checklists | Pre-execution verification gates ("Has FDIR been implemented?") |
+| **ECSS-E-ST-40C** (Space Software) | Verification Methods | Review, inspection, testing, walk-through, desk-checking, simulation, analysis |
+| **ECSS-Q-ST-80C** (Product Assurance) | Quality Gates | Traceability requirements, verification completeness |
+
+#### Core Aerospace Checklist Principles
+
+1. **Ordered Execution**: Items checked in defined sequence (pre-flight → in-flight → post-flight)
+2. **Severity-Based Gating**: CRITICAL items block execution; REQUIRED items may allow override; RECOMMENDED items are advisory
+3. **Independence Tracking**: Verifier must differ from author for safety-critical items (DO-178C DAL-A/B requirement)
+4. **Fail-Fast vs Comprehensive**: Critical items abort immediately; comprehensive mode gathers all issues
+5. **Evidence Collection**: Audit trail with timestamps, verification method, and verifier identity
+
+### 17.2 Mapping to Existing Architecture
+
+The architecture already implements checklist semantics through scattered components. This section shows how they map to aerospace checklist concepts.
+
+#### Existing Components as Checklist Implementations
+
+| Component | Location | Checklist Semantics | Aerospace Equivalent |
+|-----------|----------|---------------------|---------------------|
+| **OutputValidationDetector** | `detection/validation.py` | Ordered validation rules (length, schema, patterns) | Post-execution validation checklist |
+| **CompositeDetector** | `detection/composite.py` | Multiple checks with `fail_fast` option | Combined checklist with abort-on-critical |
+| **EscalationLadder** | `recovery/escalation.py` | Ordered recovery levels (L0→L1→L2→L3) | Recovery procedure checklist |
+| **CircuitBreakerIsolation** | `isolation/circuit_breaker.py` | State transition verification gates | Pre-execution health gate |
+| **HealthMonitor** | `metrics/health_checks.py` | Continuous health state assessment | In-flight monitoring checklist |
+| **FDIRAgent** | `patterns/fdir_agent.py` | Complete D→I→R pipeline | Full FDIR verification checklist |
+
+#### Severity Level Mapping
+
+Aerospace Design Assurance Levels map to detection severity:
+
+| DO-178C DAL | Failure Impact | Architecture Equivalent | Behavior |
+|-------------|----------------|------------------------|----------|
+| **DAL-A** (Catastrophic) | System loss | `DetectionResult.severity = 1.0` | Immediate abort |
+| **DAL-B** (Hazardous) | Serious impact | `DetectionResult.severity = 0.8` | Block with override |
+| **DAL-C** (Major) | Significant impact | `DetectionResult.severity = 0.6` | Log and continue |
+| **DAL-D/E** (Minor/None) | Limited/no impact | `DetectionResult.severity ≤ 0.3` | Advisory only |
+
+### 17.3 Checklist Integration Points
+
+Checklists integrate at three phases of agent execution:
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                    CHECKLIST INTEGRATION POINTS                    │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│   [INPUT]                                                         │
+│      │                                                            │
+│      ▼                                                            │
+│   ┌─────────────────────────────────┐                             │
+│   │ PRE-EXECUTION CHECKLIST         │ ← OutputValidationDetector  │
+│   │ (Pre-flight verification)       │    on input                 │
+│   │ • Required input fields present │                             │
+│   │ • State preconditions met       │                             │
+│   │ • Circuit breaker CLOSED        │                             │
+│   └─────────────────────────────────┘                             │
+│      │ CRITICAL failure → ABORT                                   │
+│      ▼                                                            │
+│   ┌─────────────────────────────────┐                             │
+│   │ FDIR AGENT EXECUTION            │ ← FDIRAgent pipeline        │
+│   │ (In-flight monitoring)          │                             │
+│   │ • TimeoutDetector active        │                             │
+│   │ • ExceptionDetector active      │                             │
+│   │ • Health state tracked          │                             │
+│   └─────────────────────────────────┘                             │
+│      │                                                            │
+│      ▼                                                            │
+│   ┌─────────────────────────────────┐                             │
+│   │ POST-EXECUTION CHECKLIST        │ ← OutputValidationDetector  │
+│   │ (Post-mission validation)       │    CompositeDetector        │
+│   │ • Output format valid           │                             │
+│   │ • Latency within bounds         │                             │
+│   │ • No forbidden patterns         │                             │
+│   │ • Quality criteria met          │                             │
+│   └─────────────────────────────────┘                             │
+│      │ Failures → trigger recovery                                │
+│      ▼                                                            │
+│   [OUTPUT]                                                        │
+│                                                                   │
+│   ┌─────────────────────────────────┐                             │
+│   │ CONTINUOUS HEALTH CHECKLIST     │ ← HealthMonitor (async)     │
+│   │ (Background monitoring)         │                             │
+│   │ • Error rate < threshold        │                             │
+│   │ • Latency trending normal       │                             │
+│   │ • Circuit breaker state         │                             │
+│   └─────────────────────────────────┘                             │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+#### Phase 1: Pre-Execution Checklist
+
+Implemented via `OutputValidationDetector` applied to input:
+
+```python
+# Pre-flight checklist using existing components
+pre_flight_detector = CompositeDetector(
+    strategies=[
+        # Required input fields (CRITICAL)
+        OutputValidationDetector(ValidationDetectorConfig(
+            required_fields=["query", "user_id"],
+            min_length=1
+        )),
+        # State preconditions
+        StateValidator(required_keys=["session_id"]),
+    ],
+    fail_fast=True  # Abort on first CRITICAL failure
+)
+
+# Check before execution
+pre_result = await pre_flight_detector.detect(
+    observation={"output": input_data},
+    context=context
+)
+if not pre_result.is_healthy:
+    raise PreExecutionError(pre_result.evidence)
+```
+
+#### Phase 2: Post-Execution Checklist
+
+Implemented via `CompositeDetector` with validation and timing checks:
+
+```python
+# Post-validation checklist
+post_validation = CompositeDetector(
+    strategies=[
+        # Output format (CRITICAL)
+        OutputValidationDetector(ValidationDetectorConfig(
+            min_length=10,
+            max_length=10000,
+            required_fields=["response"]
+        )),
+        # Latency check (REQUIRED)
+        TimeoutDetector(TimeoutDetectorConfig(
+            timeout_seconds=5.0,
+            warning_threshold=0.8
+        )),
+        # Safety patterns (CRITICAL)
+        PatternDetector(forbidden=[r"error", r"exception"]),
+    ],
+    fail_fast=False  # Run all checks, report comprehensive results
+)
+```
+
+#### Phase 3: Continuous Health Checklist
+
+Implemented via `HealthMonitor` with periodic checks:
+
+```python
+# Health monitoring as continuous checklist
+health_monitor = HealthMonitor(
+    metrics_to_check=[
+        ("error_rate", lambda m: m < 0.2),      # CRITICAL
+        ("p95_latency", lambda m: m < 5000),    # REQUIRED
+        ("circuit_state", lambda s: s != "OPEN") # CRITICAL
+    ],
+    check_interval=30.0
+)
+```
+
+### 17.4 Checklist Type Mapping
+
+| Checklist Type | Phase | Existing Implementation | Configuration |
+|----------------|-------|------------------------|---------------|
+| **Pre-flight** | PRE_EXECUTION | `CompositeDetector` on input | `fail_fast=True` |
+| **Post-mission** | POST_EXECUTION | `CompositeDetector` on output | `fail_fast=False` |
+| **In-flight monitoring** | CONTINUOUS | `HealthMonitor` | `check_interval` |
+| **Recovery procedure** | RECOVERY | `EscalationLadder` | Level order |
+
+#### Severity Mapping
+
+| Checklist Severity | DO-178C | Detection Severity | Gating Behavior |
+|--------------------|---------|-------------------|-----------------|
+| **CRITICAL** | DAL-A/B | `severity >= 0.8` | Block execution |
+| **REQUIRED** | DAL-C | `severity >= 0.5` | Log, may override |
+| **RECOMMENDED** | DAL-D/E | `severity < 0.5` | Advisory only |
+
+### 17.5 Composing Detectors as Checklists
+
+The existing `CompositeDetector` directly implements checklist semantics:
+
+```python
+# Example: Complete checklist via composition
+deployment_checklist = CompositeDetector(
+    strategies=[
+        # Pre-conditions (CRITICAL)
+        InputPresenceDetector(),
+        StatePrerequisiteDetector(["user_authenticated"]),
+
+        # Quality gates (REQUIRED)
+        OutputLengthDetector(min_length=50),
+        SchemaValidator(expected_schema),
+
+        # Safety checks (CRITICAL)
+        ForbiddenPatternDetector(patterns=["password", "secret"]),
+
+        # Performance (RECOMMENDED)
+        LatencyDetector(threshold_ms=1000),
+    ],
+    fail_fast=True  # Aerospace default: abort on critical
+)
+```
+
+#### Checklist Execution Modes
+
+| Mode | `CompositeDetector` Setting | Aerospace Use Case |
+|------|----------------------------|-------------------|
+| **Fail-Fast** | `fail_fast=True` | Pre-flight abort on critical |
+| **Comprehensive** | `fail_fast=False` | Post-mission audit |
+| **Best-Effort** | Custom aggregation | Advisory monitoring |
+
+### 17.6 Extension Points for Custom Checklists
+
+New checklist types can be added via the plugin registry:
+
+```python
+# Register custom checklist detector
+detection_registry.register(
+    name="custom_preflight",
+    factory=CustomPreflightDetector,
+    version="1.0.0",
+    description="Domain-specific pre-flight checklist"
+)
+
+# Use via registry
+detector = detection_registry.get(
+    "custom_preflight",
+    required_fields=["mission_id", "operator_id"],
+    timeout_seconds=10.0
+)
+```
+
+#### Independence Tracking (DO-178C Compliance)
+
+For CRITICAL items requiring verifier ≠ author:
+
+```python
+# Conceptual independence tracking
+@dataclass
+class ChecklistItem:
+    id: str
+    severity: str  # "CRITICAL", "REQUIRED", "RECOMMENDED"
+    created_by: Optional[str] = None
+    verified_by: Optional[str] = None
+
+    def validate_independence(self) -> bool:
+        """DO-178C DAL-A/B: verifier must differ from author."""
+        if self.severity == "CRITICAL" and self.created_by:
+            return self.verified_by != self.created_by
+        return True
+```
+
+### 17.7 Summary: Checklist → Architecture Mapping
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│              AEROSPACE CHECKLIST → ARCHITECTURE MAP               │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  DO-178C Objectives    →  OutputValidationDetector configs       │
+│  NASA FDIR Checklists  →  FDIRAgent with CompositeDetector       │
+│  ECSS Verification     →  Detection strategies + HealthMonitor   │
+│                                                                  │
+│  Pre-flight Checklist  →  CompositeDetector(fail_fast=True)      │
+│  Post-flight Checklist →  CompositeDetector(fail_fast=False)     │
+│  Continuous Monitoring →  HealthMonitor + periodic checks        │
+│  Recovery Procedures   →  EscalationLadder (L0→L1→L2→L3)         │
+│                                                                  │
+│  CRITICAL Items        →  severity >= 0.8, is_healthy=False      │
+│  REQUIRED Items        →  severity >= 0.5, logged with override  │
+│  RECOMMENDED Items     →  severity < 0.5, advisory only          │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Key Insight**: The architecture doesn't need a separate "Checklist" module—the existing detection, validation, and health monitoring components already implement checklist semantics. The `CompositeDetector` with configurable `fail_fast` and severity-based `DetectionResult` directly maps to aerospace checklist methodology.
 
 ---
 
