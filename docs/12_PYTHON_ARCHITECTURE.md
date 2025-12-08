@@ -3739,6 +3739,663 @@ resilient = create_resilient_agent(
 
 ---
 
+## XIV. Agent Fundamentals and Communication
+
+This section establishes the theoretical foundation for understanding agents, their composition, state management, and inter-agent communication protocols.
+
+### 14.1 What is an Agent?
+
+#### Formal Definition (Axiom 1)
+
+An **Agent A** is a function transforming input context into an asynchronous event stream:
+
+```
+A: C → E*
+
+Where:
+  C = (M, S, T)  — Context tuple
+      M = Input message
+      S = Session state (persistent key-value store)
+      T = Available toolset
+
+  E* = AsyncGenerator of events (streaming output)
+```
+
+#### Agent Class Hierarchy
+
+```
+                      Agent (abstract)
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+    LlmAgent          BaseAgent        Orchestrators
+   (LLM-powered)    (custom logic)          │
+                                  ┌─────────┼─────────┐
+                                  │         │         │
+                            Parallel   Sequential   Loop
+                            Agent       Agent      Agent
+                              ⊗           ;          ★
+```
+
+#### Protocol Definition
+
+```python
+# Pseudocode: Agent Protocol
+protocol Agent[T, R]:
+    property name: str
+
+    async method execute(input: T, context: ExecutionContext) -> AsyncIterator[R]:
+        # Transform input to event stream
+        ...
+```
+
+### 14.2 Agent Composition
+
+Four operators compose agents with proven algebraic properties:
+
+| Operator | Symbol | Semantics | Time | Commutative | Associative |
+|----------|--------|-----------|------|-------------|-------------|
+| **Parallel** | ⊗ | All execute concurrently | O(max(tᵢ)) | Yes | Yes |
+| **Sequential** | ; | Execute in order | O(Σtᵢ) | No | Yes |
+| **Iterative** | ★ | Loop until condition | O(k × t) | N/A | N/A |
+| **Augmentation** | + | Add tools to agent | O(t) | N/A | N/A |
+
+#### Composition Pseudocode
+
+```python
+# Parallel: A₁ ⊗ A₂ ⊗ A₃
+parallel_result = ParallelAgent([A1, A2, A3])
+# All run concurrently, results merged
+# Time = max(time(A1), time(A2), time(A3))
+
+# Sequential: A₁ ; A₂ ; A₃
+pipeline = SequentialAgent([A1, A2, A3])
+# A1 completes → A2 starts → A3 starts
+# State accumulates: S₀ ⊂ S₁ ⊂ S₂ ⊂ S₃
+
+# Iterative: A★(cond, k)
+loop = LoopAgent(A, condition=cond, max_iter=k)
+# Repeat A until cond(S) = true OR iterations = k
+
+# Augmentation: A + T
+augmented = Agent(tools=[T1, T2, ...])
+# Agent gains tool capabilities
+```
+
+### 14.3 Session State (Global Job State)
+
+#### Axiom 2: State Persistence
+
+```
+S: Key → Value
+
+Properties:
+  • Persistent: Survives agent execution boundaries
+  • Shared: Accessible to ALL agents in a session
+  • Mutable: Write via output_key, read via {template}
+```
+
+#### State Update Rules
+
+| Rule | Mechanism | Formula |
+|------|-----------|---------|
+| **Output Key Binding** | Agent writes to state | `S' = S ∪ {(k, v)}` |
+| **Template Substitution** | Agent reads from state | `instruction' = instruction.replace({k}, S[k])` |
+| **Sequential Accumulation** | State grows monotonically | `S₂ ⊇ S₁ ⊇ S₀` |
+| **Parallel Isolation** | Disjoint keys required | `keys(A₁) ∩ keys(A₂) = ∅` |
+
+#### State Flow Pseudocode
+
+```python
+# Agent 1: WRITE to state
+A1 = Agent(output_key="research")  # S["research"] = result
+
+# Agent 2: READ from state, WRITE to state
+A2 = Agent(
+    instruction="Analyze: {research}",  # Injects S["research"]
+    output_key="analysis"               # S["analysis"] = result
+)
+
+# Pipeline execution
+# S₀ = {}
+# After A1: S₁ = {research: "..."}
+# After A2: S₂ = {research: "...", analysis: "..."}
+```
+
+### 14.4 Inter-Agent Communication Protocols
+
+Three protocols enable agent communication:
+
+#### Protocol 1: State-Based Communication
+
+```
+Write:  Agent with output_key="k" → S["k"] = result
+Read:   Agent with instruction="{k}" → injects S["k"]
+```
+
+**Sequence:**
+```
+A1 executes → writes S["data"] → A2 created with "{data}" →
+Framework injects S["data"] → A2 executes with full instruction
+```
+
+**Use Case:** Sequential pipelines, data passing between stages.
+
+#### Protocol 2: Event-Based Communication
+
+```
+Produce:  yield Event(content=...) or Event(actions=escalate)
+Consume:  async for event in agent.execute(ctx): process(event)
+```
+
+**Event Types:**
+
+| Type | Purpose | Example |
+|------|---------|---------|
+| Content | Actual data | `Event(content="Result")` |
+| Streaming | Token-by-token | `Event(content="token", streaming=True)` |
+| Control | Flow control | `Event(actions=EventActions(escalate=True))` |
+
+**Use Case:** Real-time streaming, progress updates, loop termination signals.
+
+#### Protocol 3: Tool-Based Communication
+
+```
+Wrap:    AgentTool(child_agent) → tool
+Invoke:  Parent calls tool(args) → child executes → result returned
+```
+
+**Architecture:**
+```
+Parent Agent
+    │ invokes as tool
+    ▼
+AgentTool Wrapper
+    │ executes
+    ▼
+Child Agent (Specialist)
+```
+
+**Use Case:** Dynamic invocation, specialist delegation, multi-level nesting.
+
+#### Protocol Comparison
+
+| Aspect | State-Based | Event-Based | Tool-Based |
+|--------|-------------|-------------|------------|
+| **Direction** | Downstream only | Producer → Consumer | Bidirectional |
+| **Timing** | After completion | Real-time | On-demand |
+| **Coupling** | Loose (via keys) | Loose (via stream) | Tight (direct call) |
+| **Use Case** | Pipeline data | Streaming, control | Dynamic routing |
+
+---
+
+## XV. State Machines and Convergence
+
+This section defines the explicit state machines governing agent behavior, fault handling, and convergence properties.
+
+### 15.1 Agent Health State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Healthy: Initialize
+
+    Healthy --> Healthy: Success
+    Healthy --> Degraded: Warning (latency, errors)
+    Healthy --> Failed: Critical failure
+
+    Degraded --> Healthy: Recovery
+    Degraded --> Failed: Escalation
+
+    Failed --> Isolated: Isolation triggered
+    Isolated --> Healthy: Full recovery
+    Isolated --> [*]: Permanent failure
+```
+
+**States:**
+
+| State | Description | Allowed Operations |
+|-------|-------------|-------------------|
+| **Healthy** | Normal operation | All requests processed |
+| **Degraded** | Elevated error rate | Requests processed with monitoring |
+| **Failed** | Critical failure detected | New requests blocked |
+| **Isolated** | Agent quarantined | Recovery attempts only |
+
+**Transition Pseudocode:**
+
+```python
+# Health state transitions
+on success:
+    health_state = HEALTHY
+    reset_failure_count()
+
+on warning (latency > threshold OR error_rate > limit):
+    health_state = DEGRADED
+
+on critical_failure:
+    health_state = FAILED
+    trigger_isolation()
+
+on isolation_complete:
+    health_state = ISOLATED
+    begin_recovery()
+
+on recovery_success:
+    health_state = HEALTHY
+    release_isolation()
+```
+
+### 15.2 Circuit Breaker State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+
+    Closed --> Closed: Success (reset counter)
+    Closed --> Open: failure_count > threshold
+
+    Open --> Open: Requests blocked (fast-fail)
+    Open --> HalfOpen: recovery_timeout elapsed
+
+    HalfOpen --> Closed: Test request succeeds
+    HalfOpen --> Open: Test request fails
+```
+
+**States:**
+
+| State | Behavior | Transitions |
+|-------|----------|-------------|
+| **Closed** | Requests pass through | → Open when failures > threshold |
+| **Open** | Requests blocked immediately | → Half-Open after timeout |
+| **Half-Open** | Limited test requests | → Closed on success, → Open on failure |
+
+**Configuration:**
+```python
+circuit_breaker_config:
+    failure_threshold: 5      # Open after 5 failures
+    recovery_timeout: 30.0    # Seconds before Half-Open
+    half_open_max_calls: 1    # Test calls in Half-Open
+```
+
+### 15.3 Recovery Escalation Ladder
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                RECOVERY ESCALATION                      │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Failure Detected                                       │
+│       │                                                 │
+│       ▼                                                 │
+│  ┌─────────────┐                                        │
+│  │ L0: RETRY   │ Same agent, exponential backoff        │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │ L1: FALLBACK│ Alternative agent                      │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │L2: DEGRADE  │ Reduced functionality                  │
+│  └──────┬──────┘                                        │
+│         │ exhausted                                     │
+│         ▼                                               │
+│  ┌─────────────┐                                        │
+│  │L3: SAFE MODE│ Minimal operation, human escalation    │
+│  └─────────────┘                                        │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Escalation Pseudocode:**
+
+```python
+recovery_ladder = [L0_RETRY, L1_FALLBACK, L2_DEGRADATION, L3_SAFE_MODE]
+
+for level in recovery_ladder:
+    if level.can_handle(failure_type):
+        result = level.attempt_recovery(failure, agent, context)
+        if result.success:
+            return result
+        if not result.escalate:
+            break
+
+raise RecoveryExhaustedError(levels_tried)
+```
+
+### 15.4 Convergence Mechanisms
+
+#### Termination vs Convergence
+
+| Property | Definition | Guarantee |
+|----------|------------|-----------|
+| **Termination** | Loop stops executing | **Always** (bounded by k × r) |
+| **Convergence** | Loop stops AND condition satisfied | **Conditional** (depends on reachability) |
+
+#### Theorem 16: Bounded Termination
+
+```
+For A★ᵣ(cond, k, r):
+  k = max iterations
+  r = max retries per iteration
+
+  1. Termination: Loop terminates within ≤ k × r attempts
+  2. Convergence: Loop converges iff ∃i ≤ k where:
+     - Iteration i succeeds within r attempts
+     - cond(Sᵢ) = true
+```
+
+#### Resilient Iterative Operator (★ᵣ) State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Iteration: Start (i=1)
+
+    Iteration --> Execute: i <= max_iter
+    Execute --> CheckCondition: Success
+    Execute --> Retry: Failure
+
+    Retry --> Execute: retries < max_retries
+    Retry --> NextIteration: retries exhausted
+
+    CheckCondition --> Converged: cond(S) = true
+    CheckCondition --> NextIteration: cond(S) = false
+
+    NextIteration --> Iteration: i++
+    Iteration --> Terminated: i > max_iter
+
+    Converged --> [*]: SUCCESS
+    Terminated --> [*]: TIMEOUT
+```
+
+#### LLM-as-Judge Pattern (Two-Tier Evaluation)
+
+```python
+# Tier 1: Detailed Feedback
+feedback = llm.evaluate(
+    prompt="Review {output} against {goals}. Provide detailed critique."
+)
+# Returns: Rich feedback with specific improvements
+
+# Tier 2: Binary Decision (GATE)
+goals_met = llm.evaluate(
+    prompt="Goals: {goals}\nFeedback: {feedback}\nHave goals been met? True/False"
+)
+# Returns: True (pass gate, exit loop) or False (continue loop)
+```
+
+**Why Two Tiers?**
+- Tier 1: Actionable feedback guides improvement
+- Tier 2: Reliable boolean for loop termination
+
+#### Convergence Parameters
+
+| Parameter | Effect | Trade-off |
+|-----------|--------|-----------|
+| `max_iterations (k)` | More attempts to satisfy condition | Higher API cost |
+| `max_retries (r)` | Higher success probability per iteration | Higher latency |
+| `temperature` | Lower = more deterministic | Less exploration |
+| `timeout` | Prevents hung iterations | May miss slow successes |
+
+**Recommended Settings:**
+
+| Goal Complexity | k | r | Temperature |
+|-----------------|---|---|-------------|
+| Simple (1-2 goals) | 2-3 | 2 | 0.2 |
+| Medium (3-4 goals) | 3-5 | 3 | 0.3 |
+| Complex (5+ goals) | 5-7 | 3 | 0.3-0.5 |
+
+---
+
+## XVI. Validation, Gating, and Framework Integration
+
+This section covers validation mechanisms, gating patterns for flow control, and mappings to standard frameworks.
+
+### 16.1 Validation Mechanisms
+
+#### Output Validation (Schema-Based)
+
+```python
+# Validation configuration
+validation_config:
+    min_length: 50              # Minimum output length
+    max_length: 10000           # Maximum output length
+    required_fields: [...]      # Required keys for dict output
+    forbidden_patterns: [...]   # Regex patterns to reject
+    validator: custom_function  # Custom validation logic
+```
+
+**Validation Pseudocode:**
+
+```python
+validate(output, config):
+    if output is None:
+        return Failure(INVALID_OUTPUT, "output_is_none")
+
+    if config.validator and not config.validator(output):
+        return Failure(VALIDATION_FAILED, "custom_validator_failed")
+
+    if len(str(output)) < config.min_length:
+        return Failure(INVALID_OUTPUT, "output_too_short")
+
+    if len(str(output)) > config.max_length:
+        return Failure(INVALID_OUTPUT, "output_too_long")
+
+    if config.required_fields:
+        missing = [f for f in config.required_fields if f not in output]
+        if missing:
+            return Failure(INVALID_OUTPUT, f"missing_fields: {missing}")
+
+    return Healthy(confidence=0.9)
+```
+
+#### Detection Pipeline (FDIR-D)
+
+Five detection strategies in priority order:
+
+| Strategy | Trigger | Latency | False Positives |
+|----------|---------|---------|-----------------|
+| **Timeout** | `response_time > threshold` | Low | Medium |
+| **Exception** | Exception caught | Zero | Zero |
+| **Validation** | `not validate(output, schema)` | Low | Low |
+| **Anomaly** | Statistical deviation | High | Variable |
+| **Health Check** | Periodic probe fails | Medium | Low |
+
+**Detection Rules:**
+
+```
+Rule 1: if response_time > timeout → Failure(Timeout)
+Rule 2: if caught_exception(e) → Failure(Exception)
+Rule 3: if not validate(output) → Failure(InvalidOutput)
+Rule 4: if error_rate > threshold → Warning(HighErrorRate)
+```
+
+### 16.2 Gating Mechanisms
+
+Six gating mechanisms control execution flow:
+
+#### Gate 1: Output Validation Gate
+
+```python
+# Block if output invalid
+result = validate(agent_output, schema)
+if not result.is_healthy:
+    block_and_retry()
+```
+
+#### Gate 2: LLM-as-Judge Gate
+
+```python
+# Binary decision gate
+def goals_met(feedback, goals) -> bool:
+    response = llm.evaluate(f"Goals met? True/False: {feedback}")
+    return response == "True"  # GATE: True = pass, False = retry
+```
+
+#### Gate 3: Voting/Consensus Gate (TMR)
+
+```python
+# Require majority agreement
+def majority_vote(results) -> Any:
+    counts = Counter(str(r) for r in results)
+    winner, count = counts.most_common(1)[0]
+
+    if count <= len(results) // 2:
+        raise NoConsensusError("No majority")  # GATE BLOCKED
+
+    return winner  # GATE PASSED
+```
+
+**Voting Strategies:**
+
+| Strategy | Requirement | Use Case |
+|----------|-------------|----------|
+| **Majority** | >50% agree | General decisions |
+| **Unanimous** | 100% agree | Critical decisions |
+| **Weighted** | Weighted sum > threshold | Confidence-based |
+
+#### Gate 4: Condition Gate (Loop Control)
+
+```python
+# Loop termination gate
+if condition(session_state):
+    yield Event(actions=EventActions(escalate=True))  # OPEN GATE
+else:
+    continue_loop()  # GATE CLOSED
+```
+
+#### Gate 5: Circuit Breaker Gate
+
+```python
+# Fail-fast gate
+if circuit_state == OPEN:
+    raise CircuitOpenError("Service unavailable")  # BLOCKED
+
+# GATE OPEN - proceed with request
+result = execute_agent(...)
+
+if success:
+    circuit.record_success()
+else:
+    circuit.record_failure()  # May trip gate
+```
+
+#### Gate 6: Rate Limit Gate
+
+```python
+# Throttle requests
+if requests_in_window > rate_limit:
+    wait_or_reject()  # GATE THROTTLED
+```
+
+#### Combined Gating Stack
+
+```python
+# Full validation stack pseudocode
+pipeline = FDIR(
+    Sequential([
+        RetryAgent(generator),              # Retry gate
+        OutputValidator(min_length=100),    # Schema gate
+        LLMJudge(goals),                    # Quality gate
+        TMR([a1, a2, a3], MajorityVoting), # Consensus gate
+    ]),
+    circuit_breaker=CircuitBreaker(threshold=5),  # Fail-fast gate
+    fallback_agents=[simple_fallback],
+)
+```
+
+### 16.3 Framework Integration Mapping
+
+#### Architecture Layers
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   RELIABILITY PATTERNS LAYER                     │
+│  (RetryAgent, TMRAgent, FDIRAgent, CircuitBreaker, etc.)        │
+├─────────────────────────────────────────────────────────────────┤
+│                    UNIFIED PROTOCOL LAYER                        │
+│        Agent[T,R]  │  ExecutionContext  │  VotingStrategy       │
+├──────────┬─────────┴────────┬───────────┴──────────┬────────────┤
+│ Generic  │  GoogleADK       │  LangChain           │ OpenAI     │
+│ Adapter  │  Adapter         │  Adapter             │ Adapter    │
+├──────────┴──────────────────┴──────────────────────┴────────────┤
+│  Any async │  LlmAgent,     │  ChatOpenAI,        │ Assistants  │
+│  callable  │  BaseAgent     │  AgentExecutor      │  API        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Google ADK Mapping
+
+| ADK Concept | aerospace_reliability Equivalent |
+|-------------|----------------------------------|
+| `LlmAgent`, `BaseAgent` | `Agent[T, R]` protocol |
+| `InvocationContext` | `ExecutionContext` |
+| `session.state` | `context.session_state` |
+| `run_async()` generator | `agent.execute()` AsyncIterator |
+| `ParallelAgent` | `RedundantParallelOperator (⊗ᵣ)` + voting |
+| `SequentialAgent` | `FallbackSequentialOperator (;f)` + recovery |
+| `LoopAgent` | `ResilientIterativeOperator (★ᵣ)` |
+
+#### LangChain Adapter (Pseudocode)
+
+```python
+class LangChainAdapter:
+    def wrap(self, runnable) -> Agent:
+        return LangChainAgentWrapper(runnable)
+
+    def create_context(self, **kwargs) -> ExecutionContext:
+        return LangChainContext(**kwargs)
+
+class LangChainAgentWrapper:
+    def __init__(self, runnable):
+        self._runnable = runnable
+
+    @property
+    def name(self) -> str:
+        return getattr(self._runnable, 'name', 'langchain_agent')
+
+    async def execute(self, input, context) -> AsyncIterator:
+        result = await self._runnable.ainvoke(input)
+        yield result
+```
+
+#### Microservice Pattern Parallels
+
+| Microservice Pattern | aerospace_reliability Equivalent |
+|----------------------|----------------------------------|
+| Istio/Envoy circuit breaker | `CircuitBreakerIsolation` |
+| Kubernetes retry policies | `RetryStrategy` + backoff |
+| Service mesh health probes | `HealthMonitor` protocol |
+| Bulkhead isolation | `BulkheadIsolation` |
+| Canary deployments | TMR + `WeightedVoting` |
+| Graceful degradation | `DegradationStrategy`, `SafeModeStrategy` |
+
+#### Mixed Framework Composition
+
+```python
+# Combine agents from different frameworks
+adapter_adk = GoogleADKAdapter()
+adapter_lc = LangChainAdapter()
+adapter_generic = GenericAdapter()
+
+# Create hybrid pipeline
+pipeline = SequentialAgent([
+    adapter_adk.wrap(adk_researcher),      # Google ADK agent
+    TMRAgent([
+        adapter_lc.wrap(claude_analyzer),  # LangChain agent
+        adapter_lc.wrap(gpt4_analyzer),    # LangChain agent
+        adapter_generic.wrap(custom_fn),   # Generic callable
+    ], voting_strategy=MajorityVoting()),
+    FDIRAgent(
+        adapter_adk.wrap(synthesizer),
+        fallback_agents=[...],
+    ),
+])
+```
+
+---
+
 ## Appendices
 
 ### Appendix A: Quick Reference
@@ -3801,6 +4458,45 @@ from aerospace_reliability.plugins import (
 | Need health visibility | `HealthMonitorAgent` | FDIR | E4 |
 | Mission-critical | `FDIRAgent` | FDIR | E4 |
 
+#### A.3 Communication Protocol Selector
+
+| Scenario | Protocol | Mechanism |
+|----------|----------|-----------|
+| Sequential agents sharing data | State-Based | `output_key` → `{template}` |
+| Parallel agents with merger | State-Based | Multiple `output_key` → Merger reads all |
+| Control flow decisions | Event-Based | `yield Event`, `escalate=True` |
+| Dynamic agent invocation | Tool-Based | `AgentTool(sub_agent)` |
+| Error propagation | Event-Based | Exception events |
+| Checkpoint/resume | State-Based | Session state persistence |
+
+#### A.4 Convergence Parameters Reference
+
+| Parameter | Typical Range | Purpose |
+|-----------|--------------|---------|
+| `max_iterations` | 3-10 | Upper bound on refinement loops |
+| `temperature` | 0.1-0.4 | Low for deterministic convergence |
+| `goals` | 2-5 items | Quality criteria for LLM-as-Judge |
+| `timeout_per_iteration` | 30-120s | Per-iteration time budget |
+| `retry_delay` | 1-5s | Backoff between retries |
+| `circuit_threshold` | 3-10 | Failures before circuit opens |
+| `half_open_timeout` | 30-300s | Circuit recovery probe interval |
+
+#### A.5 Gating Mechanism Selector
+
+| Requirement | Gating Mechanism | When to Use |
+|-------------|------------------|-------------|
+| Structured output | `OutputValidator` | JSON/schema compliance needed |
+| Quality criteria | `LLMJudge` | Subjective goal evaluation |
+| Consensus needed | `TMRVoting` | Critical decisions, 3+ agents |
+| Fail-fast | `CircuitBreaker` | Protect downstream services |
+| Iteration control | `ConditionGate` | Loop termination (escalate signal) |
+| Rate protection | `RateLimiter` | API quota management |
+
+**Combined Gating Stack Order:**
+```
+Input → RateLimiter → CircuitBreaker → Agent → OutputValidator → LLMJudge → TMR → Output
+```
+
 ### Appendix B: Dependency Injection Points
 
 | Interface | Purpose | Example Implementation |
@@ -3853,6 +4549,7 @@ tests/
 
 - [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md) - Base 4D design space framework
 - [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md) - Theoretical foundations, FDIR semantics
+- [06_GOAL_SETTING_ITERATION.md](06_GOAL_SETTING_ITERATION.md) - LLM-as-Judge pattern, convergence mechanisms
 - [02_CORE_CONCEPTS.md](02_CORE_CONCEPTS.md) - Session state, events, tools
 
 ### External Standards
@@ -3863,9 +4560,9 @@ tests/
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Last Updated:** 2025-12-08
-**Author:** Derived from 11_AEROSPACE_RELIABILITY_PATTERNS.md
+**Author:** Derived from 11_AEROSPACE_RELIABILITY_PATTERNS.md + conversation discussion
 **License:** MIT (same as parent project)
 
 ---
