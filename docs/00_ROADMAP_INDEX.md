@@ -17,6 +17,8 @@ This comprehensive roadmap provides deep implementation guidance for LLM coding 
 | **[07_DECISION_FRAMEWORKS.md](07_DECISION_FRAMEWORKS.md)** | Selection guidance | Flowcharts, performance matrices, complementarity analysis |
 | **[08_TROUBLESHOOTING.md](08_TROUBLESHOOTING.md)** | Problem solving | Common errors, solutions, debugging strategies |
 | **[09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)** | Cheat sheets | Imports, signatures, templates, quick lookup |
+| **[10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md)** | Formal framework | 4D design space, composition algebra, theorems |
+| **[11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md)** | Fault tolerance | FDIR, ECSS E1-E4, retry, TMR, circuit breaker |
 
 ## Quick Pattern Selector
 
@@ -66,7 +68,7 @@ START: What do you need to accomplish?
 │     File: 06_GOAL_SETTING_ITERATION.md
 │     Use: Code generation, content creation with criteria
 │
-└─ QUESTION 5: Do you need to search, execute code, or access data?
+├─ QUESTION 5: Do you need to search, execute code, or access data?
    │
    ├─ SEARCH WEB → Pattern: GOOGLE SEARCH TOOL
    │  File: 04_TOOL_USE_PATTERNS.md
@@ -76,6 +78,24 @@ START: What do you need to accomplish?
    │
    └─ SEARCH DOCUMENTS → Pattern: VERTEX AI SEARCH
       File: 04_TOOL_USE_PATTERNS.md
+│
+└─ QUESTION 6: Do you need fault tolerance?
+   │
+   ├─ TRANSIENT FAILURES (API timeouts, rate limits)
+   │  └─ Pattern: RETRY + CIRCUIT BREAKER
+   │     File: 11_AEROSPACE_RELIABILITY_PATTERNS.md
+   │
+   ├─ CRITICAL DECISIONS (need consensus)
+   │  └─ Pattern: TMR (Triple Modular Redundancy)
+   │     File: 11_AEROSPACE_RELIABILITY_PATTERNS.md
+   │
+   ├─ SERVICE OUTAGES (need fallbacks)
+   │  └─ Pattern: FALLBACK CHAIN
+   │     File: 11_AEROSPACE_RELIABILITY_PATTERNS.md
+   │
+   └─ MISSION-CRITICAL (full protection)
+      └─ Pattern: FDIR (Full Fault Detection, Isolation, Recovery)
+         File: 11_AEROSPACE_RELIABILITY_PATTERNS.md
 ```
 
 ## Pattern Summary Table
@@ -91,6 +111,11 @@ START: What do you need to accomplish?
 | **Loop** | Iterative agents | No | Refinement until condition | Medium | 05 |
 | **AgentTool** | Agent-as-tool | Depends | Modular composition | Low | 05 |
 | **Goal Setting** | Iterative single agent | No | Quality-driven refinement | Medium | 06 |
+| **RetryAgent** | Wrapper | No | Transient failure handling | Low | 11 |
+| **CircuitBreaker** | Wrapper | No | Cascade failure prevention | Low | 11 |
+| **TMR (Triple Modular Redundancy)** | Redundant parallel | Yes | Critical decision consensus | Medium | 11 |
+| **FallbackChain** | Fallback sequential | No | Graceful degradation | Medium | 11 |
+| **FDIRAgent** | Full pipeline | Varies | Mission-critical protection | High | 11 |
 
 ## Getting Started
 
@@ -177,7 +202,9 @@ Agentic_Design_Patterns/
 │   ├── 06_GOAL_SETTING_ITERATION.md
 │   ├── 07_DECISION_FRAMEWORKS.md
 │   ├── 08_TROUBLESHOOTING.md
-│   └── 09_QUICK_REFERENCE.md
+│   ├── 09_QUICK_REFERENCE.md
+│   ├── 10_UNIFIED_THEORY.md
+│   └── 11_AEROSPACE_RELIABILITY_PATTERNS.md
 ├── CLAUDE.md      # High-level overview
 └── README.md      # Repository introduction
 ```
@@ -196,6 +223,10 @@ Agentic_Design_Patterns/
 | Build modular agent systems | AgentTool | 05 |
 | Generate code meeting specific goals | Goal Setting + LLM-as-judge | 06 |
 | Combine multiple patterns | See Complementarity Matrix | 07 |
+| Handle transient API failures | RetryAgent + CircuitBreaker | 11 |
+| Ensure decision consensus | TMR (Triple Modular Redundancy) | 11 |
+| Graceful degradation on outages | FallbackChain | 11 |
+| Mission-critical agent systems | FDIRAgent (full pipeline) | 11 |
 
 ## Pattern Relationships
 
@@ -205,15 +236,21 @@ Agentic_Design_Patterns/
 - **Coordinator + AgentTool**: Modular agents composed via intelligent coordinator
 - **Loop + LLM-as-judge**: Iterative refinement with quality checking
 - **Any pattern + Tools**: All agents can use tools for enhanced capabilities
+- **Any pattern + RetryAgent**: Add fault tolerance to any agent
+- **ParallelAgent + TMR**: Redundant execution with consensus voting
+- **Goal Setting + FDIR**: Mission-critical code generation with full protection
 
 ### Orthogonal Dimensions (Independent Choices)
 
-1. **Execution Model**: Parallel vs Sequential vs Iterative
-2. **Communication**: State-based vs Event-based vs Tool-based
-3. **Decision Making**: Rule-based vs LLM-based
-4. **Tool Integration**: Pre-built vs Custom vs Agent-as-tool
+1. **D₁ Execution Model**: Parallel vs Sequential vs Iterative
+2. **D₂ Communication**: State-based vs Event-based vs Tool-based
+3. **D₃ Decision Making**: Rule-based vs LLM-based vs Condition-based
+4. **D₄ Tool Integration**: Pre-built vs Custom vs Agent-as-tool
+5. **D₅ Fault Tolerance**: None vs Retry vs Redundant vs FDIR
 
 See [07_DECISION_FRAMEWORKS.md](07_DECISION_FRAMEWORKS.md) for detailed analysis.
+See [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md) for formal 4D framework.
+See [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md) for 5D extension with fault tolerance.
 
 ## Next Steps
 
@@ -230,6 +267,8 @@ See [07_DECISION_FRAMEWORKS.md](07_DECISION_FRAMEWORKS.md) for detailed analysis
 - **Want performance comparisons?** → [07_DECISION_FRAMEWORKS.md](07_DECISION_FRAMEWORKS.md)
 - **Having errors?** → [08_TROUBLESHOOTING.md](08_TROUBLESHOOTING.md)
 - **Need quick code snippet?** → [09_QUICK_REFERENCE.md](09_QUICK_REFERENCE.md)
+- **Want formal mathematical framework?** → [10_UNIFIED_THEORY.md](10_UNIFIED_THEORY.md)
+- **Need fault tolerance / reliability?** → [11_AEROSPACE_RELIABILITY_PATTERNS.md](11_AEROSPACE_RELIABILITY_PATTERNS.md)
 
 ---
 
